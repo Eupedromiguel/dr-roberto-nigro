@@ -1,0 +1,13 @@
+{
+  "name": "rules-tests",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "test:emuladores": "firebase emulators:exec \"npm test\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^2.0.4",
+    "jest": "^29.7.0"
+  }
+}

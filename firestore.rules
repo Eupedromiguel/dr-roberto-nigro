@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =====================================
+    // USUÁRIOS
+    // =====================================
+    match /usuarios/{userId} {
+
+      // Leituras
+      // Permite que:
+      // - o próprio usuário veja seu perfil
+      // - o admin leia qualquer perfil
+      // - qualquer usuário autenticado leia perfis de médicos
+      allow read: if request.auth != null
+        && (
+          request.auth.uid == userId
+          || request.auth.token.role == "admin"
+          || resource.data.role == "doctor"
+        );
+
+      // Criação — apenas o próprio usuário e sem definir "role"
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && !("role" in request.resource.data);
+
+      // Atualização — apenas o próprio e não pode mudar "role"
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data != null
+        && (
+          !("role" in request.resource.data)
+          || request.resource.data.role == resource.data.role
+        );
+
+      // Exclusão — apenas o próprio
+      allow delete: if request.auth != null
+        && request.auth.uid == userId;
+    }
+
+    // =====================================
+    // HORÁRIOS DISPONÍVEIS (availability_slots)
+    // =====================================
+    match /availability_slots/{slotId} {
+
+      // Qualquer usuário autenticado pode ler (pacientes precisam ver horários)
+      allow read: if request.auth != null;
+
+      // Médicos podem criar slots para si mesmos
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.medicoId
+        && request.auth.token.role == "doctor";
+
+      // Médico dono pode atualizar ou excluir seus próprios slots
+      allow update, delete: if request.auth != null
+        && request.auth.uid == resource.data.medicoId
+        && request.auth.token.role == "doctor";
+    }
+
+    // =====================================
+    // CONSULTAS (appointments)
+    // =====================================
+    match /appointments/{appointmentId} {
+
+      // Paciente cria consulta vinculada ao próprio ID
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.pacienteId
+        && request.auth.token.role == "patient"
+        && (request.resource.data.unidade is string);
+
+      // Paciente e médico envolvidos (ou admin) podem ler
+      allow read: if request.auth != null
+        && (
+          request.auth.uid == resource.data.pacienteId ||
+          request.auth.uid == resource.data.medicoId ||
+          request.auth.token.role == "admin"
+        );
+
+      // Atualização restrita — paciente ou médico envolvidos
+      // podem atualizar status, timestamps, etc., mas não alterar IDs
+      allow update: if request.auth != null
+        && (
+          request.auth.uid == resource.data.pacienteId ||
+          request.auth.uid == resource.data.medicoId
+        )
+        && request.resource.data.pacienteId == resource.data.pacienteId
+        && request.resource.data.medicoId == resource.data.medicoId
+        && request.resource.data.status in ["agendado", "cancelada", "concluida", "retorno"];
+
+      // Exclusão (cancelamento)
+      // Permitido tanto para paciente quanto para médico
+      allow delete: if request.auth != null
+        && (
+          request.auth.uid == resource.data.pacienteId ||
+          request.auth.uid == resource.data.medicoId
+        );
+    }
+
+    // =====================================
+    // ADMIN (custom claims)
+    // =====================================
+    match /{document=**} {
+
+      // Admin pode ler e editar qualquer documento
+      allow read, create, update: if request.auth != null
+        && request.auth.token.role == "admin";
+
+      // Admin NÃO tem permissão de delete
+    }
+  }
+}
