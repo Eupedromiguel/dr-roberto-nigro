@@ -106,23 +106,33 @@ exports.criarConsulta = onCall(async (request) => {
         );
       }
     }
- 
 
-    // Cria a consulta
+
+    // Busca o valor da consulta no perfil do médico
+    const medicoSnap = await db.collection("usuarios").doc(medicoId).get();
+    const medicoData = medicoSnap.exists ? medicoSnap.data() : {};
+
+    const valorConsulta = medicoData?.valorConsulta || null;
+    const valorteleConsulta = medicoData?.valorteleConsulta || null;
+
+    // Cria a consulta com os valores do médico
     const ref = await db.collection("appointments").add({
       pacienteId,
       medicoId,
       slotId,
       horario,
-      tipoConsulta: tipoConsulta || "presencial", 
+      tipoConsulta: tipoConsulta || "presencial",
       sintomas: sintomas || null,
       tipoAtendimento: tipoAtendimento || "particular",
       convenio: tipoAtendimento === "convenio" ? convenio || null : null,
       unidade: unidadeFinal || "Não informado",
+      valorConsulta,
+      valorteleConsulta,
       status: "agendado",
       criadoEm: admin.firestore.FieldValue.serverTimestamp(),
       atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
     });
+
 
     // Atualiza o slot para "ocupado"
     await db.collection("availability_slots").doc(slotId).update({
@@ -169,14 +179,19 @@ exports.cancelarConsulta = onCall(async (request) => {
 
     const consulta = snap.data();
     const uid = request.auth.uid;
+    const role = request.auth.token.role;
 
-    // Permitir apenas médico ou paciente envolvidos
-    if (consulta.pacienteId !== uid && consulta.medicoId !== uid) {
+    if (
+      consulta.pacienteId !== uid &&
+      consulta.medicoId !== uid &&
+      role !== "admin"
+    ) {
       throw new HttpsError(
         "permission-denied",
-        "Apenas o médico ou o paciente podem cancelar esta consulta."
+        "Apenas o médico, o paciente ou um administrador podem cancelar esta consulta."
       );
     }
+
 
     // Atualiza o status
     await consultaRef.update({
@@ -228,13 +243,15 @@ exports.marcarComoConcluida = onCall(async (request) => {
 
     const consulta = snap.data();
     const uid = request.auth.uid;
+    const role = request.auth.token.role;
 
-    if (consulta.medicoId !== uid) {
+    if (consulta.medicoId !== uid && role !== "admin") {
       throw new HttpsError(
         "permission-denied",
-        "Apenas o médico responsável pode concluir esta consulta."
+        "Apenas o médico responsável ou um administrador podem concluir esta consulta."
       );
     }
+
 
     await consultaRef.update({
       status: "concluida",
@@ -346,7 +363,10 @@ exports.listarConsultas = onCall(async (request) => {
             novaData: r.novaData,
             novoHorario: r.novoHorario,
             observacoes: r.observacoes || null,
+            tipoRetorno: r.tipoRetorno || "presencial",
+            unidade: r.unidade || null,
           };
+
         } else {
           consulta.retornoAgendado = null;
         }
@@ -370,7 +390,6 @@ exports.listarConsultas = onCall(async (request) => {
  * ==========================================================
  * Marcar como "retorno"
  * ----------------------------------------------------------
- * - Apenas o médico responsável pode definir uma consulta como retorno
  * - Atualiza o status para "retorno"
  * ==========================================================
  */
@@ -394,14 +413,15 @@ exports.marcarComoRetorno = onCall(async (request) => {
 
     const consulta = snap.data();
     const uid = request.auth.uid;
+    const role = request.auth.token.role;
 
-    // Apenas o médico responsável pode marcar como retorno
-    if (consulta.medicoId !== uid) {
+    if (consulta.medicoId !== uid && role !== "admin") {
       throw new HttpsError(
         "permission-denied",
-        "Apenas o médico responsável pode marcar esta consulta como retorno."
+        "Apenas o médico responsável ou um administrador podem marcar esta consulta como retorno."
       );
     }
+
 
     // Atualiza o status
     await consultaRef.update({
@@ -422,11 +442,11 @@ exports.marcarComoRetorno = onCall(async (request) => {
 
 /**
  * ==========================================================
- * Agendar Retorno
+ * Agendar ou remarcar retorno
  * ----------------------------------------------------------
- * - Apenas o médico responsável pode agendar o retorno
- * - O paciente tem direito a 1 único retorno
- * - Salva nova data/hora em appointments/{id}/retorno
+ * - Apenas o médico responsável pode agendar ou remarcar
+ * - Salva na subcoleção appointments/{consultaId}/retorno
+ * - Armazena tipo (presencial/teleconsulta) e unidade (se aplicável)
  * ==========================================================
  */
 exports.agendarRetorno = onCall(async (request) => {
@@ -434,10 +454,28 @@ exports.agendarRetorno = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Usuário não autenticado.");
   }
 
-  const { consultaId, novaData, novoHorario, observacoes } = request.data || {};
-  if (!consultaId || !novaData || !novoHorario) {
-    throw new HttpsError("invalid-argument", "Campos obrigatórios ausentes.");
+  const { consultaId, novaData, novoHorario, observacoes, tipoRetorno, unidade } =
+    request.data || {};
+
+  if (!consultaId || !novaData || !novoHorario || !tipoRetorno) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Campos obrigatórios ausentes (consultaId, novaData, novoHorario, tipoRetorno)."
+    );
   }
+
+  // Validação de unidade — obrigatória se presencial
+  if (tipoRetorno === "presencial" && (!unidade || unidade.trim() === "")) {
+    throw new HttpsError(
+      "invalid-argument",
+      "A unidade médica é obrigatória para retornos presenciais."
+    );
+  }
+
+  const unidadeFinal =
+    tipoRetorno === "teleconsulta"
+      ? "Atendimento remoto - Teleconsulta"
+      : unidade;
 
   try {
     const consultaRef = db.collection("appointments").doc(consultaId);
@@ -447,32 +485,37 @@ exports.agendarRetorno = onCall(async (request) => {
 
     const consulta = snap.data();
     const uid = request.auth.uid;
+    const role = request.auth.token.role;
 
-    // Apenas médico responsável pode remarcar
-    if (consulta.medicoId !== uid) {
-      throw new HttpsError("permission-denied", "Apenas o médico responsável pode agendar o retorno.");
+    if (consulta.medicoId !== uid && role !== "admin") {
+      throw new HttpsError(
+        "permission-denied",
+        "Apenas o médico responsável ou um administrador podem agendar o retorno."
+      );
     }
+
 
     const retornoRef = consultaRef.collection("retorno");
     const retornoSnap = await retornoRef.limit(1).get();
 
+    const payload = {
+      novaData,
+      novoHorario,
+      observacoes: observacoes || null,
+      tipoRetorno,
+      unidade: unidadeFinal,
+      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
     if (!retornoSnap.empty) {
       // Atualiza o retorno existente
       const docId = retornoSnap.docs[0].id;
-      await retornoRef.doc(docId).update({
-        novaData,
-        novoHorario,
-        observacoes: observacoes || null,
-        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      await retornoRef.doc(docId).update(payload);
     } else {
       // Cria novo retorno
       await retornoRef.add({
-        novaData,
-        novoHorario,
-        observacoes: observacoes || null,
+        ...payload,
         criadoEm: admin.firestore.FieldValue.serverTimestamp(),
-        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
 
@@ -482,10 +525,12 @@ exports.agendarRetorno = onCall(async (request) => {
       atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    console.log(`🔵 Retorno atualizado/remarcado para consulta ${consultaId}.`);
+    console.log(`🔵 Retorno salvo para consulta ${consultaId}. Tipo: ${tipoRetorno}`);
     return { sucesso: true, mensagem: "Retorno agendado com sucesso." };
   } catch (error) {
     console.error("Erro ao agendar retorno:", error);
     throw new HttpsError("internal", "Erro ao agendar o retorno.", error.message);
   }
 });
+
+

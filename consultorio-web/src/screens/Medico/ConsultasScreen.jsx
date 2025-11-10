@@ -3,6 +3,7 @@ import { httpsCallable } from "firebase/functions";
 import { functions } from "../../services/firebase";
 import { motion, AnimatePresence } from "framer-motion";
 import { IMaskInput } from "react-imask";
+import { useRef } from "react";
 
 // Função de páginação
 
@@ -117,7 +118,18 @@ export default function ConsultasScreen() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
   const [mensagem, setMensagem] = useState("");
-  
+  const [tipoRetorno, setTipoRetorno] = useState("presencial");
+  const [unidade, setUnidade] = useState("");
+  const toastRef = useRef(null);
+  const [toastMsg, setToastMsg] = useState("");
+
+  function showToast(message, duration = 3000) {
+    setToastMsg(message);
+    clearTimeout(toastRef.current);
+    toastRef.current = setTimeout(() => setToastMsg(""), duration);
+  }
+
+
 
   // Faz mensagens sumirem automaticamente após 5 segundos
   useEffect(() => {
@@ -137,7 +149,7 @@ export default function ConsultasScreen() {
   const [consultaParaRetorno, setConsultaParaRetorno] = useState(null);
   const [novaData, setNovaData] = useState("");
   const [novoHorario, setNovoHorario] = useState("");
-  const [observacoes, setObservacoes] = useState("");  
+  const [observacoes, setObservacoes] = useState("");
   const [loadingConcluirId, setLoadingConcluirId] = useState(null);
   const [loadingCancelar, setLoadingCancelar] = useState(false);
   const [loadingRetorno, setLoadingRetorno] = useState(false);
@@ -150,7 +162,7 @@ export default function ConsultasScreen() {
   const [buscaNome, setBuscaNome] = useState("");
   const [buscaData, setBuscaData] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
-  
+
 
 
 
@@ -194,7 +206,7 @@ export default function ConsultasScreen() {
     let ano, mes, dia;
     const partes = dataNascimento.split("-");
     if (partes[0].length === 4) [ano, mes, dia] = partes;
-    else [dia, mes, ano] = partes;
+    else[dia, mes, ano] = partes;
     const nasc = new Date(`${ano}-${mes}-${dia}T00:00:00`);
     const hoje = new Date();
     let idade = hoje.getFullYear() - nasc.getFullYear();
@@ -250,35 +262,35 @@ export default function ConsultasScreen() {
   }, []);
 
   useEffect(() => {
-  setPaginaAtual(1);
-}, [consultas.length]);
+    setPaginaAtual(1);
+  }, [consultas.length]);
 
 
   // Cancelar consulta
   async function confirmarCancelamento() {
-  if (!consultaParaCancelar) return;
-  setLoadingCancelar(true);
-  try {
-    const cancelar = httpsCallable(functions, "consultas-cancelarConsulta");
-    const res = await cancelar({ consultaId: consultaParaCancelar });
-    if (res.data?.sucesso) {
-      setConsultas((prev) =>
-        prev.map((c) =>
-          c.id === consultaParaCancelar ? { ...c, status: "cancelada" } : c
-        )
-      );
-      setMensagem("Consulta cancelada com sucesso.");
-    } else {
+    if (!consultaParaCancelar) return;
+    setLoadingCancelar(true);
+    try {
+      const cancelar = httpsCallable(functions, "consultas-cancelarConsulta");
+      const res = await cancelar({ consultaId: consultaParaCancelar });
+      if (res.data?.sucesso) {
+        setConsultas((prev) =>
+          prev.map((c) =>
+            c.id === consultaParaCancelar ? { ...c, status: "cancelada" } : c
+          )
+        );
+        setMensagem("Consulta cancelada com sucesso.");
+      } else {
+        setErro("Erro ao cancelar consulta.");
+      }
+    } catch {
       setErro("Erro ao cancelar consulta.");
+    } finally {
+      setLoadingCancelar(false);
+      setModalAberto(false);
+      setConsultaParaCancelar(null);
     }
-  } catch {
-    setErro("Erro ao cancelar consulta.");
-  } finally {
-    setLoadingCancelar(false);
-    setModalAberto(false);
-    setConsultaParaCancelar(null);
   }
-}
 
 
   function handleAbrirModal(consultaId) {
@@ -287,26 +299,47 @@ export default function ConsultasScreen() {
   }
 
   async function handleConcluir(consultaId) {
-  setLoadingConcluirId(consultaId);
-  try {
-    const concluir = httpsCallable(functions, "consultas-marcarComoConcluida");
-    const res = await concluir({ consultaId });
-    if (res.data?.sucesso) {
-      setConsultas((prev) =>
-        prev.map((c) =>
-          c.id === consultaId ? { ...c, status: "concluida" } : c
-        )
-      );
-      setMensagem("Consulta marcada como concluída.");
-    } else {
-      setErro("Erro ao concluir consulta.");
+    const consulta = consultas.find((c) => c.id === consultaId);
+    if (!consulta) return;
+
+    // Verificação de data/hora
+    try {
+      const [dataStr, horaStr] = consulta.horario.split(" ");
+      const [ano, mes, dia] = dataStr.split("-").map(Number);
+      const [hora, minuto] = horaStr.split(":").map(Number);
+      const dataHoraConsulta = new Date(ano, mes - 1, dia, hora, minuto);
+      const agora = new Date();
+
+      if (agora < dataHoraConsulta) {
+        showToast("Não é possível concluir uma consulta antes do horário agendado.");
+        return;
+      }
+    } catch (err) {
+      console.error("Erro ao validar data da consulta:", err);
     }
-  } catch {
-    setErro("Erro ao marcar como concluída.");
-  } finally {
-    setLoadingConcluirId(null);
+
+    // prossegue se a data/hora já passou
+    setLoadingConcluirId(consultaId);
+    try {
+      const concluir = httpsCallable(functions, "consultas-marcarComoConcluida");
+      const res = await concluir({ consultaId });
+      if (res.data?.sucesso) {
+        setConsultas((prev) =>
+          prev.map((c) =>
+            c.id === consultaId ? { ...c, status: "concluida" } : c
+          )
+        );
+        setMensagem("Consulta marcada como concluída.");
+      } else {
+        setErro("Erro ao concluir consulta.");
+      }
+    } catch {
+      setErro("Erro ao marcar como concluída.");
+    } finally {
+      setLoadingConcluirId(null);
+    }
   }
-}
+
 
 
   // Agendar Retorno
@@ -316,136 +349,141 @@ export default function ConsultasScreen() {
   }
 
   async function confirmarRetorno() {
-  setErroDataRetorno(false);
-  setErroHorarioRetorno(false);
+    setErroDataRetorno(false);
+    setErroHorarioRetorno(false);
 
-  if (!consultaParaRetorno || !novaData || !novoHorario) {
-    setErro("Preencha a data e o horário do retorno.");
-    return;
-  }
+    if (!consultaParaRetorno || !novaData || !novoHorario) {
+      setErro("Preencha a data e o horário do retorno.");
+      return;
+    }
 
-  // Validar e converter data (DD/MM/AAAA → YYYY-MM-DD)
-  const partes = novaData.split("/");
-  if (partes.length !== 3) {
-    setErro("Formato de data inválido. Use DD/MM/AAAA.");
-    setErroDataRetorno(true);
-    return;
-  }
+    // Validar e converter data (DD/MM/AAAA → YYYY-MM-DD)
+    const partes = novaData.split("/");
+    if (partes.length !== 3) {
+      setErro("Formato de data inválido. Use DD/MM/AAAA.");
+      setErroDataRetorno(true);
+      return;
+    }
 
-  const [dia, mes, ano] = partes.map((p) => parseInt(p, 10));
-  if (
-    isNaN(dia) || isNaN(mes) || isNaN(ano) ||
-    dia < 1 || dia > 31 || mes < 1 || mes > 12 || ano < 1900
-  ) {
-    setErro("Data inválida. Verifique o dia, mês e ano.");
-    setErroDataRetorno(true);
-    return;
-  }
+    const [dia, mes, ano] = partes.map((p) => parseInt(p, 10));
+    if (
+      isNaN(dia) || isNaN(mes) || isNaN(ano) ||
+      dia < 1 || dia > 31 || mes < 1 || mes > 12 || ano < 1900
+    ) {
+      setErro("Data inválida. Verifique o dia, mês e ano.");
+      setErroDataRetorno(true);
+      return;
+    }
 
-  // Verifica se a data realmente existe
-  const dataObj = new Date(ano, mes - 1, dia);
-  if (
-    dataObj.getFullYear() !== ano ||
-    dataObj.getMonth() + 1 !== mes ||
-    dataObj.getDate() !== dia
-  ) {
-    setErro("Data inválida. Essa data não existe no calendário.");
-    setErroDataRetorno(true);
-    return;
-  }
+    // Verifica se a data realmente existe
+    const dataObj = new Date(ano, mes - 1, dia);
+    if (
+      dataObj.getFullYear() !== ano ||
+      dataObj.getMonth() + 1 !== mes ||
+      dataObj.getDate() !== dia
+    ) {
+      setErro("Data inválida. Essa data não existe no calendário.");
+      setErroDataRetorno(true);
+      return;
+    }
 
-  const dataFormatada = `${ano}-${String(mes).padStart(2, "0")}-${String(
-    dia
-  ).padStart(2, "0")}`;
+    const dataFormatada = `${ano}-${String(mes).padStart(2, "0")}-${String(
+      dia
+    ).padStart(2, "0")}`;
 
-  // 🕓 Validar horário (HH:MM)
-  const [hora, minuto] = novoHorario.split(":").map((p) => parseInt(p, 10));
-  if (
-    isNaN(hora) || isNaN(minuto) ||
-    hora < 0 || hora > 23 || minuto < 0 || minuto > 59
-  ) {
-    setErro("Horário inválido. Use o formato HH:MM (00–23h / 00–59min).");
-    setErroHorarioRetorno(true);
-    return;
-  }
+    // Validar horário (HH:MM)
+    const [hora, minuto] = novoHorario.split(":").map((p) => parseInt(p, 10));
+    if (
+      isNaN(hora) || isNaN(minuto) ||
+      hora < 0 || hora > 23 || minuto < 0 || minuto > 59
+    ) {
+      setErro("Horário inválido. Use o formato HH:MM (00–23h / 00–59min).");
+      setErroHorarioRetorno(true);
+      return;
+    }
 
-  // 🧠 Buscar a consulta original para comparar datas
-  const consultaOriginal = consultas.find((c) => c.id === consultaParaRetorno);
-  if (!consultaOriginal) {
-    setErro("Consulta original não encontrada.");
-    return;
-  }
+    // Buscar a consulta original para comparar datas
+    const consultaOriginal = consultas.find((c) => c.id === consultaParaRetorno);
+    if (!consultaOriginal) {
+      setErro("Consulta original não encontrada.");
+      return;
+    }
 
-  // Converter a data/hora original
-  const [dataOriginalStr, horaOriginalStr] = consultaOriginal.horario.split(" ");
-  const [anoO, mesO, diaO] = dataOriginalStr.split("-").map(Number);
-  const [horaO, minutoO] = horaOriginalStr.split(":").map(Number);
-  const dataHoraOriginal = new Date(anoO, mesO - 1, diaO, horaO, minutoO);
+    // Converter a data/hora original
+    const [dataOriginalStr, horaOriginalStr] = consultaOriginal.horario.split(" ");
+    const [anoO, mesO, diaO] = dataOriginalStr.split("-").map(Number);
+    const [horaO, minutoO] = horaOriginalStr.split(":").map(Number);
+    const dataHoraOriginal = new Date(anoO, mesO - 1, diaO, horaO, minutoO);
 
-  // Converter a nova data/hora (retorno)
-  const dataHoraRetorno = new Date(ano, mes - 1, dia, hora, minuto);
+    // Converter a nova data/hora (retorno)
+    const dataHoraRetorno = new Date(ano, mes - 1, dia, hora, minuto);
 
-  // 🚫 Nova regra: bloquear retorno no mesmo dia da consulta original
-const mesmaData =
-  dataHoraRetorno.getFullYear() === dataHoraOriginal.getFullYear() &&
-  dataHoraRetorno.getMonth() === dataHoraOriginal.getMonth() &&
-  dataHoraRetorno.getDate() === dataHoraOriginal.getDate();
+    // Bloquear retorno no mesmo dia da consulta original
+    const mesmaData =
+      dataHoraRetorno.getFullYear() === dataHoraOriginal.getFullYear() &&
+      dataHoraRetorno.getMonth() === dataHoraOriginal.getMonth() &&
+      dataHoraRetorno.getDate() === dataHoraOriginal.getDate();
 
-if (mesmaData) {
-  setErro("O retorno não pode ser marcado para o mesmo dia da consulta.");
-  setErroDataRetorno(true);
-  return;
-}
+    if (mesmaData) {
+      setErro("O retorno não pode ser marcado para o mesmo dia da consulta.");
+      setErroDataRetorno(true);
+      return;
+    }
 
-// 🚫 Bloquear se o retorno for anterior à consulta original
-if (dataHoraRetorno < dataHoraOriginal) {
-  setErro("A data do retorno deve ser posterior à data da consulta original.");
-  setErroDataRetorno(true);
-  return;
-}
-
-
+    // Bloquear se o retorno for anterior à consulta original
+    if (dataHoraRetorno < dataHoraOriginal) {
+      setErro("A data do retorno deve ser posterior à data da consulta original.");
+      setErroDataRetorno(true);
+      return;
+    }
 
 
-  // ✅ Tudo ok, prossegue
-  setLoadingRetorno(true);
-  try {
-    const agendar = httpsCallable(functions, "consultas-agendarRetorno");
-    const res = await agendar({
-      consultaId: consultaParaRetorno,
-      novaData: dataFormatada, // formato Firestore
-      novoHorario,              // HH:MM
-      observacoes,
-    });
 
-    if (res.data?.sucesso) {
-      setConsultas((prev) =>
-        prev.map((c) =>
-          c.id === consultaParaRetorno
-            ? {
+
+    // Tudo ok, prossegue
+    setLoadingRetorno(true);
+    try {
+      const agendar = httpsCallable(functions, "consultas-agendarRetorno");
+      const res = await agendar({
+        consultaId: consultaParaRetorno,
+        novaData: dataFormatada, // formato Firestore
+        novoHorario,              // HH:MM
+        observacoes,
+        tipoRetorno,
+        unidade,
+      });
+
+      if (res.data?.sucesso) {
+        setConsultas((prev) =>
+          prev.map((c) =>
+            c.id === consultaParaRetorno
+              ? {
                 ...c,
                 status: "retorno",
-                retornoAgendado: { novaData: dataFormatada, novoHorario, observacoes },
+                retornoAgendado: { novaData: dataFormatada, novoHorario, observacoes, tipoRetorno, unidade },
               }
-            : c
-        )
-      );
-      setMensagem("Retorno agendado com sucesso.");
-    } else {
+              : c
+          )
+        );
+        setMensagem("Retorno agendado com sucesso.");
+      } else {
+        setErro("Erro ao agendar retorno.");
+      }
+    } catch (e) {
+      console.error("Erro ao agendar retorno:", e);
       setErro("Erro ao agendar retorno.");
+    } finally {
+      setLoadingRetorno(false);
+      setModalRetorno(false);
+      setConsultaParaRetorno(null);
+      setNovaData("");
+      setNovoHorario("");
+      setObservacoes("");
+      setTipoRetorno("presencial");
+      setUnidade("");
+
     }
-  } catch (e) {
-    console.error("Erro ao agendar retorno:", e);
-    setErro("Erro ao agendar retorno.");
-  } finally {
-    setLoadingRetorno(false);
-    setModalRetorno(false);
-    setConsultaParaRetorno(null);
-    setNovaData("");
-    setNovoHorario("");
-    setObservacoes("");
   }
-}
 
 
 
@@ -459,6 +497,7 @@ if (dataHoraRetorno < dataHoraOriginal) {
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto p-6 animate-pulse space-y-4">
+
         <div className="h-6 bg-slate-300 rounded w-1/3"></div>
         {[...Array(3)].map((_, i) => (
           <div
@@ -470,12 +509,14 @@ if (dataHoraRetorno < dataHoraOriginal) {
             <div className="h-4 bg-slate-200 rounded w-3/4"></div>
           </div>
         ))}
+
+
       </div>
     );
   }
 
-    // Aplica filtros antes da paginação
-    const consultasFiltradas = consultas.filter((c) => {
+  // Aplica filtros antes da paginação
+  const consultasFiltradas = consultas.filter((c) => {
     const paciente = pacientesInfo[c.pacienteId];
     const nome = paciente?.nome?.toLowerCase() || "";
     const buscaLower = buscaNome.toLowerCase();
@@ -525,100 +566,100 @@ if (dataHoraRetorno < dataHoraOriginal) {
         </p>
       )}
 
-{/* 🔍 Barra de busca e filtro */}
-<div className="flex flex-col md:flex-row !text-gray-500 items-center justify-between gap-3 mb-6">
-  {/* Campo de nome */}
-  <input
-    type="text"
-    placeholder="Pesquisar por nome..."
-    value={buscaNome}
-    onChange={(e) => {
-      setBuscaNome(e.target.value);
-      setPaginaAtual(1); // volta pra página 1 quando busca muda
-    }}
-    className="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-400"
-  />
+      {/* 🔍 Barra de busca e filtro */}
+      <div className="flex flex-col md:flex-row !text-gray-500 items-center justify-between gap-3 mb-6">
+        {/* Campo de nome */}
+        <input
+          type="text"
+          placeholder="Pesquisar por nome..."
+          value={buscaNome}
+          onChange={(e) => {
+            setBuscaNome(e.target.value);
+            setPaginaAtual(1); // volta pra página 1 quando busca muda
+          }}
+          className="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-400"
+        />
 
-  {/* Campo de data com IMask */}
-  <IMaskInput
-    mask="00/00/0000"
-    placeholder="Filtrar por data (DD/MM/AAAA)"
-    value={buscaData}
-    onAccept={(v) => {
-      setBuscaData(v);
-      setPaginaAtual(1);
-    }}
-    className="w-full md:w-1/3 px-3 py-2 border text-gray-500 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-400"
-  />
+        {/* Campo de data com IMask */}
+        <IMaskInput
+          mask="00/00/0000"
+          placeholder="Filtrar por data (DD/MM/AAAA)"
+          value={buscaData}
+          onAccept={(v) => {
+            setBuscaData(v);
+            setPaginaAtual(1);
+          }}
+          className="w-full md:w-1/3 px-3 py-2 border text-gray-500 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-400"
+        />
 
-  {/* Dropdown de status */}
-  <div className="relative w-full md:w-1/4">
-  <select
-    value={filtroStatus}
-    onChange={(e) => {
-      setFiltroStatus(e.target.value);
-      setPaginaAtual(1);
-    }}
-    className="appearance-none w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-400 pr-8"
-  >
-    <option value="todos">Todos os status</option>
-    <option value="agendado">Agendadas</option>
-    <option value="concluida">Concluídas</option>
-    <option value="cancelada">Canceladas</option>
-    <option value="retorno">Retornos</option>
-  </select>
+        {/* Dropdown de status */}
+        <div className="relative w-full md:w-1/4">
+          <select
+            value={filtroStatus}
+            onChange={(e) => {
+              setFiltroStatus(e.target.value);
+              setPaginaAtual(1);
+            }}
+            className="appearance-none w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-400 pr-8"
+          >
+            <option value="todos">Todos os status</option>
+            <option value="agendado">Agendadas</option>
+            <option value="concluida">Concluídas</option>
+            <option value="cancelada">Canceladas</option>
+            <option value="retorno">Retornos</option>
+          </select>
 
-  {/* Ícone de seta customizado */}
-  <svg
-    className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
-    xmlns="http://www.w3.org/2000/svg"
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-  </svg>
-</div>
-
-
-
-
-
-</div>
+          {/* Ícone de seta customizado */}
+          <svg
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
 
 
 
 
-          {totalPaginas > 1 && (
-            <div className="mb-4">
-              <Pagination
-                current={paginaAtual}
-                total={totalPaginas}
-                onChange={(n) => {
-                  setPaginaAtual(n);
-                  // opcional: rolar até o título quando muda de página
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-              />
-            </div>
-          )}
+
+      </div>
 
 
 
 
-                {/* Exibição condicional dos resultados */}
-          {consultas.length === 0 ? (
-            // Caso não haja nenhuma consulta no sistema (vazio geral)
-            <p className="text-slate-600">Nenhuma consulta agendada.</p>
-          ) : consultasFiltradas.length === 0 ? (
-            // Caso haja consultas, mas os filtros não encontraram nenhuma
-            <p className="text-slate-500 text-normal">
-              Nenhuma consulta encontrada para os filtros selecionados.
-            </p>
-          ) : (
-            // Caso normal — há resultados após filtro
-            <ul className="space-y-3">
-              {consultasPaginaAtual.map((c) => {
+      {totalPaginas > 1 && (
+        <div className="mb-4">
+          <Pagination
+            current={paginaAtual}
+            total={totalPaginas}
+            onChange={(n) => {
+              setPaginaAtual(n);
+              // opcional: rolar até o título quando muda de página
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          />
+        </div>
+      )}
+
+
+
+
+      {/* Exibição condicional dos resultados */}
+      {consultas.length === 0 ? (
+        // Caso não haja nenhuma consulta no sistema (vazio geral)
+        <p className="text-slate-600">Nenhuma consulta agendada.</p>
+      ) : consultasFiltradas.length === 0 ? (
+        // Caso haja consultas, mas os filtros não encontraram nenhuma
+        <p className="text-slate-500 text-normal">
+          Nenhuma consulta encontrada para os filtros selecionados.
+        </p>
+      ) : (
+        // Caso normal — há resultados após filtro
+        <ul className="space-y-3">
+          {consultasPaginaAtual.map((c) => {
 
 
             const paciente = pacientesInfo[c.pacienteId];
@@ -662,9 +703,37 @@ if (dataHoraRetorno < dataHoraOriginal) {
                   <b>Tipo de consulta:</b>{" "}
                   {tipo === "teleconsulta" ? "Teleconsulta" : "Presencial"}
                 </p>
+                {c.tipoAtendimento === "particular" && (
+                  <>
+                    {tipo === "teleconsulta" && c.valorteleConsulta && (
+                      <p>
+                        <b>Valor da teleconsulta:</b>{" "}
+                        <span className="font-semibold text-gray-950">
+                          R$ {parseFloat(c.valorteleConsulta).toFixed(2)}
+                        </span>
+                      </p>
+                    )}
+
+                    {tipo === "presencial" && c.valorConsulta && (
+                      <p>
+                        <b>Valor da consulta presencial:</b>{" "}
+                        <span className="font-normal text-gray-950">
+                          R$ {parseFloat(c.valorConsulta).toFixed(2)}
+                        </span>
+                      </p>
+                    )}
+                  </>
+                )}
+
+                {c.unidade && (
+                  <p>
+                    <b>Unidade:</b> {c.unidade}
+                  </p>
+                )}
+
                 {c.sintomas && (
                   <p>
-                    <b>Sintomas:</b> {c.sintomas}
+                    <b>Sintomas ou alergias:</b> {c.sintomas}
                   </p>
                 )}
                 {c.tipoAtendimento && (
@@ -678,53 +747,72 @@ if (dataHoraRetorno < dataHoraOriginal) {
                   </p>
                 )}
 
+                {/* Detalhes do Retorno */}
                 {c.retornoAgendado && (
-                  <p className="mt-2 text-blue-700">
-                    <b>Retorno agendado:</b>{" "}
-                    {formatarDataHora(
-                      `${c.retornoAgendado.novaData} ${c.retornoAgendado.novoHorario}`
+                  <div className="mt-3 p-3 bg-yellow-50 border border-gray-200 rounded-lg text-sm text-blue-900">
+                    <p className="font-medium mb-1">📋 <b>Detalhes do Retorno</b></p>
+
+                    <p>
+                      <b>Data e horário:</b>{" "}
+                      {formatarDataHora(
+                        `${c.retornoAgendado.novaData} ${c.retornoAgendado.novoHorario}`
                       )}
-                  </p>
-                )}
-                {c.retornoAgendado?.observacoes && (
-                  <p>
-                    <b>Observações:</b> {c.retornoAgendado.observacoes}
-                  </p>
-                )}
+                    </p>
 
+                    <p>
+                      <b>Tipo de retorno:</b>{" "}
+                      {c.retornoAgendado.tipoRetorno === "teleconsulta"
+                        ? "Teleconsulta"
+                        : "Presencial"}
+                    </p>
 
-                <p>
+                    {c.retornoAgendado.unidade && (
+                      <p>
+                        <b>Unidade do retorno:</b> {c.retornoAgendado.unidade}
+                      </p>
+                    )}
+
+                    {c.retornoAgendado.observacoes && (
+                      <p>
+                        <b>Observações:</b> {c.retornoAgendado.observacoes}
+                      </p>
+                    )}
+                  </div>
+                )}
+                <br />
+
+                <p className="text-sm text-gray-700 mt-1">
                   <b>Status:</b>{" "}
                   <span
-                    className={`font-medium ${
-                      c.status === "cancelada"
-                        ? "text-red-600"
+                    className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold
+      ${c.status === "cancelada"
+                        ? "bg-red-100 text-red-800"
                         : c.status === "concluida"
-                        ? "text-green-600"
-                        : c.status === "retorno"
-                        ? "text-blue-600"
-                        : "text-blue-700"
-                    }`}
+                          ? "bg-green-100 text-green-800"
+                          : c.status === "retorno"
+                            ? "bg-blue-100 text-blue-800"
+                            : "bg-yellow-100 text-yellow-800"
+                      }`}
                   >
                     {formatarStatus(c.status)}
                   </span>
                 </p>
 
+
                 {c.status === "agendado" && (
                   <div className="flex gap-2 mt-3">
                     <button
-                    onClick={() => handleConcluir(c.id)}
-                    disabled={loadingConcluirId === c.id}
-                    className={`${
-                      loadingConcluirId === c.id
+                      onClick={() => handleConcluir(c.id)}
+                      disabled={loadingConcluirId === c.id}
+                      className={`${loadingConcluirId === c.id
                         ? "bg-green-400 cursor-not-allowed"
                         : "bg-green-600 hover:bg-green-700"
-                    } text-white px-3 py-1 rounded-md text-sm flex items-center gap-2`}
-                  >
-                    {loadingConcluirId === c.id && (
-                      <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span>
-                    )}
-                    {loadingConcluirId === c.id ? "Concluindo..." : "Concluir"}
+                        } text-white px-3 py-1 rounded-md text-sm flex items-center gap-2`}
+                    >
+                      {loadingConcluirId === c.id && (
+                        <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span>
+                      )}
+                      {loadingConcluirId === c.id ? "Concluindo..." : "Concluir"}
                     </button>
 
                     <button
@@ -767,18 +855,17 @@ if (dataHoraRetorno < dataHoraOriginal) {
                       Remarcar Retorno
                     </button>
 
-                    {/* ✅ Botão Marcar como Concluído */}
+                    {/* Botão Marcar como Concluído */}
                     <button
                       onClick={() => {
                         setConsultaParaConcluirRetorno(c.id);
                         setModalConcluirRetorno(true);
                       }}
                       disabled={loadingConcluirId === c.id}
-                      className={`${
-                        loadingConcluirId === c.id
-                          ? "bg-green-400 cursor-not-allowed"
-                          : "bg-green-600 hover:bg-green-700"
-                      } text-white px-3 py-1 rounded-md text-sm flex items-center gap-2`}
+                      className={`${loadingConcluirId === c.id
+                        ? "bg-green-400 cursor-not-allowed"
+                        : "bg-green-600 hover:bg-green-700"
+                        } text-white px-3 py-1 rounded-md text-sm flex items-center gap-2`}
                     >
                       {loadingConcluirId === c.id && (
                         <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span>
@@ -789,6 +876,10 @@ if (dataHoraRetorno < dataHoraOriginal) {
                   </div>
                 )}
 
+<div className="mt-3 text-[11px] text-gray-500 font-mono bg-gray-100 px-2 py-1 rounded select-all w-fit">
+  ID: {c.id}
+</div>
+
 
               </li>
             );
@@ -797,21 +888,21 @@ if (dataHoraRetorno < dataHoraOriginal) {
       )}
 
       {totalPaginas > 1 && (
-  <div className="mt-6">
-    <Pagination
-      current={paginaAtual}
-      total={totalPaginas}
-      onChange={(n) => {
-        setPaginaAtual(n);
-        // opcional: rolar para o topo da lista
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }}
-    />
-  </div>
-)}
+        <div className="mt-6">
+          <Pagination
+            current={paginaAtual}
+            total={totalPaginas}
+            onChange={(n) => {
+              setPaginaAtual(n);
+              // opcional: rolar para o topo da lista
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          />
+        </div>
+      )}
 
 
-      {/* 🆕 Modal de confirmação */}
+      {/* Modal de confirmação */}
       <AnimatePresence>
         {modalAberto && (
           <motion.div
@@ -848,9 +939,8 @@ if (dataHoraRetorno < dataHoraOriginal) {
                 <button
                   onClick={confirmarCancelamento}
                   disabled={loadingCancelar}
-                  className={`${
-                    loadingCancelar ? "bg-red-400 cursor-not-allowed" : "bg-red-600 hover:bg-red-700"
-                  } text-white px-4 py-2 rounded-md text-sm flex items-center gap-2`}
+                  className={`${loadingCancelar ? "bg-red-400 cursor-not-allowed" : "bg-red-600 hover:bg-red-700"
+                    } text-white px-4 py-2 rounded-md text-sm flex items-center gap-2`}
                 >
                   {loadingCancelar && (
                     <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span>
@@ -902,71 +992,98 @@ if (dataHoraRetorno < dataHoraOriginal) {
 
 
               <div className="space-y-3 mb-4 text-left">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Data do Retorno
-                </label>
-                <IMaskInput
-                  mask="00/00/0000"
-                  placeholder="DD/MM/AAAA"
-                  className={`border rounded-md w-full px-3 py-2 text-gray-900 transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent
- ${
-                    erroDataRetorno
-                      ? "border-red-500 focus:border-red-600"
-                      : "border-gray-300 focus:border-blue-600"
-                  }`}
-                  value={novaData}
-                  onAccept={(v) => setNovaData(v)}
-                />
+                {/* Tipo de Retorno */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tipo de Retorno
+                  </label>
+                  <select
+                    value={tipoRetorno}
+                    onChange={(e) => setTipoRetorno(e.target.value)}
+                    className="border border-gray-300 rounded-md w-full px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  >
+                    <option value="presencial">Presencial</option>
+                    <option value="teleconsulta">Teleconsulta</option>
+                  </select>
+                </div>
 
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Horário do Retorno
-                </label>
-                <IMaskInput
-                  mask="00:00"
-                  placeholder="HH:MM"
-                  className={`border rounded-md w-full px-3 py-2 text-gray-900 transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent
- ${
-                    erroHorarioRetorno
-                      ? "border-red-500 focus:border-red-600"
-                      : "border-gray-300 focus:border-blue-600"
-                  }`}
-                  value={novoHorario}
-                  onAccept={(v) => setNovoHorario(v)}
-                />
+                {/* Unidade — aparece apenas se tipo = presencial */}
+                {tipoRetorno === "presencial" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Unidade Médica
+                    </label>
+                    <select
+                      value={unidade}
+                      onChange={(e) => setUnidade(e.target.value)}
+                      className="border border-gray-300 rounded-md w-full px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    >
+                      <option value="">Selecione uma unidade</option>
+                      <option value="Unidade Pompéia - Rua Apinajés, 1100 - Conj. 803/804">Unidade Pompéia</option>
+                      <option value="Unidade Cayowaá - Rua Cayowaá, 1071 - 10º Andar Conj. 102/103">Unidade Cayowaá</option>
+                    </select>
+                  </div>
+                )}
 
+                {/* Data */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Data do Retorno
+                  </label>
+                  <IMaskInput
+                    mask="00/00/0000"
+                    placeholder="DD/MM/AAAA"
+                    className={`border rounded-md w-full px-3 py-2 text-gray-900 transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent ${erroDataRetorno ? "border-red-500" : "border-gray-300"
+                      }`}
+                    value={novaData}
+                    onAccept={(v) => setNovaData(v)}
+                  />
+                </div>
+
+                {/* Horário */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Horário do Retorno
+                  </label>
+                  <IMaskInput
+                    mask="00:00"
+                    placeholder="HH:MM"
+                    className={`border rounded-md w-full px-3 py-2 text-gray-900 transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent ${erroHorarioRetorno ? "border-red-500" : "border-gray-300"
+                      }`}
+                    value={novoHorario}
+                    onAccept={(v) => setNovoHorario(v)}
+                  />
+                </div>
+
+                {/* Observações */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Observações (opcional)
+                  </label>
+                  <textarea
+                    className="border border-gray-300 rounded-md w-full px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    rows={2}
+                    value={observacoes}
+                    onChange={(e) => setObservacoes(e.target.value)}
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Observações (opcional)
-                </label>
-                <textarea
-                  className="border border-gray-300 rounded-md w-full px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent
-"
-                  rows={2}
-                  value={observacoes}
-                  onChange={(e) => setObservacoes(e.target.value)}
-                />
-              </div>
-            </div>
+
 
 
               <div className="flex justify-center gap-3">
                 <button
-                onClick={confirmarRetorno}
-                disabled={loadingRetorno}
-                className={`${
-                  loadingRetorno
+                  onClick={confirmarRetorno}
+                  disabled={loadingRetorno}
+                  className={`${loadingRetorno
                     ? "bg-blue-400 cursor-not-allowed"
                     : "bg-blue-600 hover:bg-blue-700"
-                } text-white px-4 py-2 rounded-md text-sm flex items-center gap-2`}
-              >
-                {loadingRetorno && (
-                  <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span>
-                )}
-                {loadingRetorno ? "Agendando..." : "Confirmar"}
+                    } text-white px-4 py-2 rounded-md text-sm flex items-center gap-2`}
+                >
+                  {loadingRetorno && (
+                    <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span>
+                  )}
+                  {loadingRetorno ? "Agendando..." : "Confirmar"}
                 </button>
 
                 <button
@@ -980,76 +1097,89 @@ if (dataHoraRetorno < dataHoraOriginal) {
           </motion.div>
         )}
 
-          {/* ✅ Modal de confirmação de conclusão de retorno */}
-          {modalConcluirRetorno && (
+        {/* Modal de confirmação de conclusão de retorno */}
+        {modalConcluirRetorno && (
+          <motion.div
+            className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
             <motion.div
-              className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              className="bg-white rounded-xl p-6 w-[90%] max-w-sm shadow-2xl text-center"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
             >
-              <motion.div
-                className="bg-white rounded-xl p-6 w-[90%] max-w-sm shadow-2xl text-center"
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-              >
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                  Confirmar Conclusão
-                </h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                Confirmar Conclusão
+              </h3>
 
-                {erro && (
-                  <p className="text-red-600 bg-red-50 border border-red-200 p-2 rounded mb-3">
-                    {erro}
-                  </p>
-                )}
-                {mensagem && (
-                  <p className="text-green-700 bg-green-50 border border-green-200 p-2 rounded mb-3">
-                    {mensagem}
-                  </p>
-                )}
-
-                <p className="text-gray-700 mb-5">
-                  Deseja realmente marcar este retorno como <b>concluído</b>?
+              {erro && (
+                <p className="text-red-600 bg-red-50 border border-red-200 p-2 rounded mb-3">
+                  {erro}
                 </p>
+              )}
+              {mensagem && (
+                <p className="text-green-700 bg-green-50 border border-green-200 p-2 rounded mb-3">
+                  {mensagem}
+                </p>
+              )}
 
-                <div className="flex justify-center gap-3">
-                  <button
-                    onClick={async () => {
-                      setModalConcluirRetorno(false);
-                      if (consultaParaConcluirRetorno) {
-                        await handleConcluir(consultaParaConcluirRetorno);
-                      }
-                    }}
-                    disabled={loadingConcluirId === consultaParaConcluirRetorno}
-                    className={`${
-                      loadingConcluirId === consultaParaConcluirRetorno
-                        ? "bg-green-400 cursor-not-allowed"
-                        : "bg-green-600 hover:bg-green-700"
+              <p className="text-gray-700 mb-5">
+                Deseja realmente marcar este retorno como <b>concluído</b>?
+              </p>
+
+              <div className="flex justify-center gap-3">
+                <button
+                  onClick={async () => {
+                    setModalConcluirRetorno(false);
+                    if (consultaParaConcluirRetorno) {
+                      await handleConcluir(consultaParaConcluirRetorno);
+                    }
+                  }}
+                  disabled={loadingConcluirId === consultaParaConcluirRetorno}
+                  className={`${loadingConcluirId === consultaParaConcluirRetorno
+                    ? "bg-green-400 cursor-not-allowed"
+                    : "bg-green-600 hover:bg-green-700"
                     } text-white px-4 py-2 rounded-md text-sm flex items-center gap-2`}
-                  >
-                    {loadingConcluirId === consultaParaConcluirRetorno && (
-                      <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span>
-                    )}
-                    {loadingConcluirId === consultaParaConcluirRetorno
-                      ? "Concluindo..."
-                      : "Confirmar"}
-                  </button>
+                >
+                  {loadingConcluirId === consultaParaConcluirRetorno && (
+                    <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span>
+                  )}
+                  {loadingConcluirId === consultaParaConcluirRetorno
+                    ? "Concluindo..."
+                    : "Confirmar"}
+                </button>
 
-                  <button
-                    onClick={() => setModalConcluirRetorno(false)}
-                    className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md text-sm"
-                  >
-                    Fechar
-                  </button>
-                </div>
-              </motion.div>
+                <button
+                  onClick={() => setModalConcluirRetorno(false)}
+                  className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md text-sm"
+                >
+                  Fechar
+                </button>
+              </div>
             </motion.div>
-          )}
-
-
-
+          </motion.div>
+        )}
       </AnimatePresence>
+
+{/* Toast simples */}
+<AnimatePresence>
+  {toastMsg && (
+    <motion.div
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3 }}
+      className="fixed top-6 right-6 bg-red-100 text-red px-4 py-2 rounded-md shadow-lg z-50"
+    >
+      {toastMsg}
+    </motion.div>
+  )}
+</AnimatePresence>
+
+
     </div>
   );
 }

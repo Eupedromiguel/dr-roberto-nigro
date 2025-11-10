@@ -334,8 +334,6 @@ export default function ConsultaConfirmadaScreen({ tipo = "presencial" }) {
               <p>
                 O link para a teleconsulta será enviado por e-mail ou WhatsApp
                 no horário agendado.
-                <br />
-                O retorno para teleconsultas é marcado também via teleconsulta
               </p>
             </div>
           </>
