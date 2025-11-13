@@ -30,7 +30,7 @@ export default function SidebarAdmin() {
     { label: "Gerenciar usuários", path: "/admin/usuarios", icon: Users },
     { label: "Gerenciar médicos", path: "/admin/medicos", icon: Stethoscope },
     { label: "Notificações", path: "/admin/notificacoes", icon: Bell },
-    { label: "Gerenciar planos", path: "/admin/planos", icon: IdCardLanyard },
+    { label: "Gerenciar convênios", path: "/admin/planos", icon: IdCardLanyard },
     { label: "Gerenciar agendas", path: "/admin/agendas", icon: CalendarCog },
     { label: "Gerenciar slots", path: "/admin/slots", icon: BetweenHorizontalEnd },
   ];
