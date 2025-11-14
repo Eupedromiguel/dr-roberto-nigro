@@ -28,74 +28,73 @@ export default function UnidadesScreen() {
       telefone: "(11) 3673-2899 / (11) 96338-0861",
       horario: "Seg a Sab: 8h às 17h",
       slides: ["/unidade-cayowaa-1.png", "/unidade-cayowaa-2.png"],
-      mapa: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3657.854716237287!2d-46.68534362467041!3d-23.537727278816014!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x94ce57ef0bba731d%3A0x6631bc338bd55449!2sRua%20Cayowa%C3%A1%2C%201071%20-%20Perdizes%2C%20S%C3%A3o%20Paulo%20-%20SP%2C%2005018-001!5e0!3m2!1spt-BR!2sbr!4v1761675089205!5m2!1spt-BR!2sbr",
+      mapa:
+        "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3657.854716237287!2d-46.68534362467041!3d-23.537727278816014!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x94ce57ef0bba731d%3A0x6631bc338bd55449!2sRua%20Cayowa%C3%A1%2C%201071!5e0!3m2!1spt-BR!2sbr!4v1761675089205!5m2!1spt-BR!2sbr",
       mapsLink:
         "https://www.google.com/maps/place/Rua+Cayowa%C3%A1,+1071+-+Perdizes,+S%C3%A3o+Paulo+-+SP",
     },
   ];
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-gray-800 text-yellow-400">
       {/* Cabeçalho */}
-      <section className="text-center py-12 px-6 bg-gray-900 border-gray-200">
-        <h1 className="text-4xl font-momo mb-3">Nossas Unidades</h1>
-        <p className="max-w-2xl mx-auto text-white">
-          Conheça as unidades da Clínica Dr. Roberto Nigro e escolha a mais próxima de você.
-        </p>
-      </section>
 
-      {/* Unidades */}
-      {unidades.map((uni, i) => (
-        <motion.section
-          key={uni.nome}
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="max-w-6xl mx-auto p-10 md:p-14 grid md:grid-cols-2 gap-12 
-                     bg-gray-800 rounded-3xl border border-gray-700 shadow-xl mt-10"
-        >
-          {/* SLIDES + título */}
-          <div>
-            <h2 className="text-2xl md:text-3xl font-semibold mb-5 text-white text-center md:text-left">
-              {uni.nome}
-            </h2>
-            <SlideShow slides={uni.slides} />
-          </div>
 
-          {/* Dados da unidade */}
-          <div>
-            <p className="mb-1">{uni.endereco}</p>
-            <p className="font-medium text-white">{uni.telefone}</p>
-            <p className="mb-4 text-white">{uni.horario}</p>
+{/* Unidades */}
+{unidades.map((uni) => (
+  <motion.section
+    key={uni.nome}
+    initial={{ opacity: 0, y: 30 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true }}
+    transition={{ duration: 0.5 }}
+    className="max-w-6xl mx-auto px-6 py-12
+               grid md:grid-cols-2 gap-12
+               border-b border-gray-700"
+  >
+    {/* SLIDES + título */}
+    <div>
+      <h2 className="text-2xl font-light mb-5 text-yellow-400">
+        {uni.nome}
+      </h2>
 
-            <MapWithSpinner src={uni.mapa} />
+      <SlideShow slides={uni.slides} />
+    </div>
 
-            <a
-              href={uni.mapsLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block bg-gray-950 hover:bg-yellow-400 text-white font-medium px-4 py-2 rounded-md transition"
-            >
-              Ver no Google Maps
-            </a>
-          </div>
-        </motion.section>
-      ))}
+    {/* Dados da unidade → todos BRANCOS */}
+    <div className="text-white">
+      <p className="mb-1">{uni.endereco}</p>
+      <p className="font-medium">{uni.telefone}</p>
+      <p className="mb-4">{uni.horario}</p>
+
+      <MapWithSpinner src={uni.mapa} />
+
+      <a
+        href={uni.mapsLink}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-block bg-gray-900 hover:bg-yellow-400 text-white font-medium px-4 py-2 rounded-md transition"
+      >
+        Ver no Google Maps
+      </a>
+    </div>
+  </motion.section>
+))}
+
     </div>
   );
 }
 
 /* ===============================
-   MAPA COM SPINNER AJUSTADO
+   MAPA COM SPINNER
 ================================ */
 function MapWithSpinner({ src }) {
   const [loading, setLoading] = useState(true);
 
   return (
-    <div className="relative w-full h-[250px] mb-3 rounded-xl overflow-hidden border border-gray-700">
+    <div className="relative w-full h-[250px] mb-3 rounded-xl overflow-hidden">
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-800/20">
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-800/40">
           <div className="w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
         </div>
       )}
@@ -107,24 +106,25 @@ function MapWithSpinner({ src }) {
         allowFullScreen
         loading="lazy"
         onLoad={() => setLoading(false)}
-        className="rounded-xl"
+        className=""
       ></iframe>
     </div>
   );
 }
 
 /* ===============================
-   SLIDESHOW AJUSTADO
+   SLIDESHOW
 ================================ */
 function SlideShow({ slides }) {
   const [index, setIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [loadedCount, setLoadedCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setIndex((prev) => (prev + 1) % slides.length);
-    }, 4000);
+    const timer = setInterval(
+      () => setIndex((prev) => (prev + 1) % slides.length),
+      4000
+    );
     return () => clearInterval(timer);
   }, [slides.length]);
 
@@ -133,9 +133,9 @@ function SlideShow({ slides }) {
   }, [loadedCount, slides.length]);
 
   return (
-    <div className="relative overflow-hidden rounded-xl h-100 w-full shadow-md">
+    <div className="relative overflow-hidden rounded-xl h-100 w-full">
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-800/20">
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-800/40">
           <div className="w-8 h-8 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin"></div>
         </div>
       )}

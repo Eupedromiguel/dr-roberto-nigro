@@ -6,6 +6,7 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  updateDoc
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import Button from "../../components/Button";
@@ -69,13 +70,18 @@ export default function GerenciarPlanos() {
   const [novoConvenio, setNovoConvenio] = useState("");
 
   const [novaCategoria, setNovaCategoria] = useState("");
-  const [convenioSelecionado, setConvenioSelecionado] = useState(null); // só controla acordeon
+  const [convenioSelecionado, setConvenioSelecionado] =
+    useState(null);
+  const [medicos, setMedicos] = useState([]);
+  const [categoriaAberta, setCategoriaAberta] = useState(null);
+
 
   // Modal
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState("");
   const [confirmAction, setConfirmAction] = useState(() => () => { });
   const [loadingDelete, setLoadingDelete] = useState(false);
+
 
   /* ----------------------------------------------------------
      CARREGAR CONVÊNIOS + CATEGORIAS
@@ -110,6 +116,33 @@ export default function GerenciarPlanos() {
     carregarConvenios();
   }, []);
 
+  // CARREGAR MÉDICOS
+
+  async function carregarMedicos() {
+    const snap = await getDocs(collection(db, "usuarios"));
+    const lista = [];
+
+    snap.forEach((docu) => {
+      const data = docu.data();
+      if (data.role === "doctor") lista.push({ id: docu.id, ...data });
+    });
+
+    setMedicos(lista);
+  }
+
+  useEffect(() => {
+    carregarMedicos();
+  }, []);
+
+  async function atualizarMedicosCategoria(convenioId, categoriaId, lista) {
+    await updateDoc(
+      doc(db, `planos_saude/${convenioId}/categorias`, categoriaId),
+      { medicos: lista }
+    );
+    carregarConvenios(); // atualizar state da tela
+  }
+
+
   /* ----------------------------------------------------------
      CRUD
   ---------------------------------------------------------- */
@@ -139,7 +172,7 @@ export default function GerenciarPlanos() {
     carregarConvenios();
   }
 
-  // 🔹 Agora recebe o ID do convênio direto
+  // Recebe o ID do convênio direto
   async function adicionarCategoria(convenioId) {
     if (!novaCategoria.trim()) return;
 
@@ -147,6 +180,7 @@ export default function GerenciarPlanos() {
       collection(db, `planos_saude/${convenioId}/categorias`),
       {
         nome: novaCategoria.trim(),
+        medicos: []
       }
     );
 
@@ -226,8 +260,8 @@ export default function GerenciarPlanos() {
 
                   {/* Botão remover convênio */}
                   <Button
-                    className="!text-xs !px-3 !py-2 !border !border-gray-950 
-                         !bg-red-400 !text-gray-950 hover:!bg-red-500 
+                    className="!text-xs !px-3 !py-2 
+                         !bg-red-500 !text-white hover:!bg-red-700 
                          !max-w-[150px] truncate mb-4"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -251,30 +285,138 @@ export default function GerenciarPlanos() {
                       </li>
                     )}
 
-                    {conv.categorias.map((cat) => (
-                      <li
-                        key={cat.id}
-                        className="flex justify-between items-center bg-gray-700 px-3 py-2 rounded"
-                      >
-                        {cat.nome}
+                    {conv.categorias.map((cat) => {
 
-                        <button
-                          onClick={() => {
-                            setConfirmMessage(
-                              `Deseja remover a categoria "${cat.nome}"?`
-                            );
-                            setConfirmAction(
-                              () => () =>
-                                removerCategoria(conv.id, cat.id)
-                            );
-                            setConfirmOpen(true);
-                          }}
-                          className="text-red-400 hover:text-red-200 text-sm"
-                        >
-                          Remover
-                        </button>
-                      </li>
-                    ))}
+                      const isCatOpen = categoriaAberta === cat.id;
+
+                      return (
+                        <li key={cat.id} className="bg-gray-700 px-3 py-3 rounded space-y-3">
+
+                          {/* Cabeçalho da categoria */}
+                          <div
+                            className="flex justify-between items-center cursor-pointer"
+                            onClick={() => setCategoriaAberta(isCatOpen ? null : cat.id)}
+                          >
+                            <span className="text-lg">{cat.nome}</span>
+
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConfirmMessage(`Deseja remover a categoria "${cat.nome}"?`);
+                                  setConfirmAction(() => () => removerCategoria(conv.id, cat.id));
+                                  setConfirmOpen(true);
+                                }}
+                                className="text-yellow-400 hover:text-yellow-700 text-sm"
+                              >
+                                Remover categoria
+                              </button>
+
+                              <span className="text-yellow-400 text-sm">
+                                {isCatOpen ? "▲" : "▼"}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* CONTEÚDO EXPANDIDO */}
+                          {isCatOpen && (
+                            <div className="bg-gray-800 p-3 rounded-md space-y-3 animate-fadeIn">
+
+                              <p className="text-sm text-gray-300">Médicos que atendem:</p>
+
+                              {cat.medicos?.length > 0 ? (
+                                <ul className="space-y-1">
+                                  {cat.medicos.map((id) => {
+                                    const medico = medicos.find((m) => m.id === id);
+
+                                    return (
+                                      <li
+                                        key={id}
+                                        className="flex justify-between items-center bg-gray-900 px-2 py-2 rounded"
+                                      >
+                                        <span>{medico?.nome || "(Removido)"}</span>
+
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setConfirmMessage(
+                                              `Deseja remover o médico "${medico?.nome}" da categoria "${cat.nome}"?`
+                                            );
+                                            setConfirmAction(() => () => {
+                                              const novaLista = cat.medicos.filter((m) => m !== id);
+                                              atualizarMedicosCategoria(conv.id, cat.id, novaLista);
+                                            });
+                                            setConfirmOpen(true);
+                                          }}
+                                          className="text-red-400 hover:text-red-200 text-xs"
+                                        >
+                                          Remover médico
+                                        </button>
+
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              ) : (
+                                <p className="text-gray-400 text-sm">Nenhum médico vinculado.</p>
+                              )}
+
+                              {/* Adicionar médico */}
+                              <div className="mt-3">
+                                <p className="text-sm text-gray-300 mb-1">Adicionar médico:</p>
+
+                                <div className="flex gap-2">
+                                  <div className="relative flex-1">
+                                    <select
+                                      className="w-full bg-green-500 text-white p-2 rounded border border-gray-600 
+                             appearance-none pr-10 focus:outline-none focus:ring-2 
+                             focus:ring-gray-800 focus:border-gray-800"
+                                      onChange={(e) => {
+                                        const novoId = e.target.value;
+                                        if (!novoId) return;
+
+                                        const novaLista = [...(cat.medicos || []), novoId];
+                                        atualizarMedicosCategoria(conv.id, cat.id, novaLista);
+
+                                        e.target.value = "";
+                                      }}
+                                    >
+                                      <option value="">Clique e selecione</option>
+                                      {medicos
+                                        .filter((m) => !cat.medicos?.includes(m.id))
+                                        .map((m) => (
+                                          <option key={m.id} value={m.id}>
+                                            {m.nome}
+                                          </option>
+                                        ))}
+                                    </select>
+
+                                    {/* seta SVG personalizada */}
+                                    <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        className="w-4 h-4 text-gray-300"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                      >
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+
+
+
+
                   </ul>
 
                   {/* Adicionar categoria */}

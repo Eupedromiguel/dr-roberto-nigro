@@ -37,19 +37,16 @@ export default function Navbar() {
   // Menus por tipo de usuário
   const menusByRole = {
     patient: [
-      { label: "Unidades", path: "/unidades", icon: MapPin },
       { label: "Meu perfil", path: "/perfil", icon: User },
       { label: "Marcar", path: "/paciente/agendar", icon: Calendar },
       { label: "Agendamentos", path: "/paciente/agendamentos", icon: ClipboardList },
     ],
     doctor: [
-      { label: "Unidades", path: "/unidades", icon: MapPin },
       { label: "Vagas", path: "/medico/agenda", icon: Calendar },
       { label: "Agenda", path: "/medico/consultas", icon: ClipboardList },
       { label: "Meu perfil", path: "/perfil", icon: User },
     ],
     admin: [
-      { label: "Unidades", path: "/unidades", icon: MapPin },
       { label: "Gerenciar usuários", path: "/admin/usuarios", icon: User },
       { label: "Gerenciar médicos", path: "/admin/medicos", icon: Stethoscope },
       { label: "Meu perfil", path: "/perfil", icon: User },
