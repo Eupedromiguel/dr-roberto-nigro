@@ -184,11 +184,16 @@ firebase functions:secrets:set EMAIL_PASS
 
 # Papéis de Usuário (Qualquer usuário pode ver, atualizar os próprios dados e excluir a própria conta)
 
-Papel	  Atribuição	                                     Permissões
 
-patient	  Automático ao criar conta	                         Pode agendar, cancelar e acompanhar as próprias consultas
-doctor	  Definido por um admin	                             Pode criar e gerenciar slots, ver perfil, atualizar dados
-admin	  Definido no painel ou via função backend	         Pode listar e alterar roles
+| Papel       | Atribuição                               | Permissões                                                               |
+|-----------------------------------------------------------------------------------------------------------------------------------|
+| **patient** | Automático ao criar conta                | Pode agendar, cancelar e acompanhar as próprias consultas                |
+|--------------------------------------------------------|--------------------------------------------------------------------------|
+| **doctor**  | Definido por um admin                    | Pode criar, gerenciar slots, cancelar e acompanhar as próprias consultas |
+|--------------------------------------------------------|--------------------------------------------------------------------------|
+| **admin**   | Definido no painel ou via função backend | Lista, altera roles, gerencia todos os slots, médicos e convênios        |
+|--------------------------------------------------------|--------------------------------------------------------------------------|
+
 
 -------------------------------------------------------------------------------------------------------------------------------
 
