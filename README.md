@@ -71,8 +71,7 @@ Funções de **1ª Geração (Node 20)** para eventos do Authentication.
 
 | Trigger            | Descrição                                                      |
 |--------------------|----------------------------------------------------------------|                                                 
-| **onUserCreated**  | Cria documento `usuarios/{uid}` e envia e-mail de verificação. |
-|--------------------|----------------------------------------------------------------| 
+| **onUserCreated**  | Cria documento `usuarios/{uid}` e envia e-mail de verificação. | 
 | **onUserDeleted**  | Remove todos os dados vinculados ao usuário excluído.          |
 
 -------------------------------------------------------------------------------------------------------------------------------
@@ -86,16 +85,10 @@ Gerencia o ciclo de vida dos usuários.
 | Função               | Descrição                                                                                     |
 |----------------------|-----------------------------------------------------------------------------------------------|
 | **criarUsuario**     | Cria documento no Firestore (`usuarios/{uid}`) e verifica duplicações (e-mail, CPF, telefone) |
-|----------------------|-----------------------------------------------------------------------------------------------|
 | **atualizarUsuario** | Usuário pode atualizar seus dados pessoais, exceto o campo `role`                             |
-|----------------------|-----------------------------------------------------------------------------------------------|
 | **deletarUsuario**   | Remove usuário do Auth e do Firestore.                                                        |
-|----------------------|-----------------------------------------------------------------------------------------------|
 | **validarDuplicatas**| Verificação de duplicidade usada antes do registro (sem precisar estar autenticado).          |
-|----------------------|-----------------------------------------------------------------------------------------------|
 | **meuPerfil**        | Retorna os dados do perfil do usuário autenticado.                                            |
-|----------------------|-----------------------------------------------------------------------------------------------|
-
 
 
 ---
@@ -106,19 +99,11 @@ Responsável pelos **horários disponíveis** dos médicos.
 | Função                 | Descrição                                                                       |
 |------------------------|---------------------------------------------------------------------------------|
 | **criarSlot**          | Médico cria um horário em `availability_slots`. Valida duplicação de data/hora. |
-|------------------------|---------------------------------------------------------------------------------|
 | **listarSlotsPublico** | Retorna horários disponíveis, com filtros por médico e data.                    |
-|------------------------|---------------------------------------------------------------------------------|
 | **deletarSlot**        | Médico remove seus próprios horários.                                           |
-|------------------------|---------------------------------------------------------------------------------|
 | **listarMeusSlots**    | Retorna todos os slots criados pelo médico autenticado.                         |
-|------------------------|---------------------------------------------------------------------------------|
 | **reativarSlot**       | Reabre um slot anteriormente cancelado.                                         |
-|------------------------|---------------------------------------------------------------------------------|
 | **atualizarSlot**      | Permite ao médico editar um slot existente.                                     |
-|------------------------|---------------------------------------------------------------------------------|
-
-
 
 
 ---
@@ -129,17 +114,11 @@ Gerencia o **fluxo de consultas** entre paciente e médico.
 | Função                 | Descrição                                                                       |
 |------------------------|---------------------------------------------------------------------------------|
 | **criarConsulta**      | Apenas pacientes autenticados com e-mail verificado.                            |
-|------------------------|---------------------------------------------------------------------------------|
 | **cancelarConsulta**   | Cancela uma consulta (sem excluir).                                             |
-|------------------------|---------------------------------------------------------------------------------|
 | **marcarComoConcluida**| Apenas o médico responsável pode executar, atualiza status para "concluida".    |
-|------------------------|---------------------------------------------------------------------------------|
 | **listarConsultas**    | Paciente → apenas as suas, Médico → apenas as suas, Admin → todas.              |
-|------------------------|---------------------------------------------------------------------------------|
 | **marcarComoRetorno**  | Apenas o médico responsável pode executar.                                      |
-|------------------------|---------------------------------------------------------------------------------|
 | **agendarRetorno**     | Agenda ou atualiza um retorno associado a uma consulta. Apenas 1 por consulta   |
-|------------------------|---------------------------------------------------------------------------------|
 
 ---
 
@@ -149,9 +128,8 @@ Módulo administrativo responsável por todas as ações restritas a administrad
 | Função             | Descrição                                                                          |
 |--------------------|---------------------------------------------------------------------------------   |
 | **listarUsuarios** | Lista todos os usuários cadastrados na coleção usuarios                            |
-|--------------------|---------------------------------------------------------------------------------   |
 | **definirRole**    | Atualiza o custom claim no Authentication e o campo role no Firestore              |
-|--------------------|---------------------------------------------------------------------------------   |
+
 
 ---
 
@@ -161,16 +139,10 @@ Módulo central para envio de e-mails via **Nodemailer**.
 | Função                                          | Descrição                                                                 |
 |-------------------------------------------------|---------------------------------------------------------------------------|
 | **sendVerificationEmail(user)**                 | Envia o e-mail de verificação de conta ao novo usuário                    |
-|-------------------------------------------------|---------------------------------------------------------------------------|
 | **sendPasswordResetEmail(email)**               | Envia e-mail de redefinição de senha com link gerado pelo Firebase        |
-|-------------------------------------------------|---------------------------------------------------------------------------|
 | **sendChangeEmail(uid, novoEmail)**             | Gerencia alteração de e-mail                                              |
-|-------------------------------------------------|---------------------------------------------------------------------------|
 | **sendPasswordChangedAlert(email)**             | Envia alerta de segurança confirmando que a senha foi alterada com sucesso|
-|-------------------------------------------------|---------------------------------------------------------------------------|
 | **sendPhoneChangedAlert(email, novoTelefone)**  | Envia aviso de que o telefone foi atualizado.                             |
-|-------------------------------------------------|---------------------------------------------------------------------------|
-
 
 
 **Variáveis de ambiente:**
@@ -190,7 +162,6 @@ firebase functions:secrets:set EMAIL_PASS
 | **patient** | Automático ao criar conta                | Pode agendar, cancelar e acompanhar as próprias consultas                |
 | **doctor**  | Definido por um admin                    | Pode criar, gerenciar slots, cancelar e acompanhar as próprias consultas |
 | **admin**   | Definido no painel ou via função backend | Lista, altera roles, gerencia todos os slots, médicos e convênios        |
-|-------------|------------------------------------------|--------------------------------------------------------------------------|
 
 
 -------------------------------------------------------------------------------------------------------------------------------
