@@ -114,7 +114,7 @@ const Toaster = forwardRef(function Toaster(_props, ref) {
         >
           <div className="flex items-start gap-3">
             {t.type === "success" && <span></span>}
-            {t.type === "error" && <span>⚠️</span>}
+            {t.type === "error" && <span></span>}
             <div className="flex-1 text-sm">{t.message}</div>
             <button
               onClick={() => remove(t.id)}
@@ -159,45 +159,45 @@ export default function AgendaScreen() {
 
 
 
-async function excluirDiaCompleto(dia) {
-  try {
-    setDeletingDay(true);
+  async function excluirDiaCompleto(dia) {
+    try {
+      setDeletingDay(true);
 
-    // Todos os slots do dia
-    const slotsDoDia = slots.filter(s => s.data === dia);
+      // Todos os slots do dia
+      const slotsDoDia = slots.filter(s => s.data === dia);
 
-    const deletarFn = httpsCallable(functions, "medicos-deletarSlot");
+      const deletarFn = httpsCallable(functions, "medicos-deletarSlot");
 
-    let ok = 0, fail = 0;
+      let ok = 0, fail = 0;
 
-    for (const slot of slotsDoDia) {
-      try {
-        await deletarFn({ slotId: slot.id });
-        ok++;
-      } catch (e) {
-        fail++;
+      for (const slot of slotsDoDia) {
+        try {
+          await deletarFn({ slotId: slot.id });
+          ok++;
+        } catch (e) {
+          fail++;
+        }
       }
+
+      notify(
+        `Dia excluído: ${ok} horários cancelados${fail ? `, ${fail} falharam` : ""}.`,
+        fail ? "error" : "success"
+      );
+
+      setDiasLocais(prev => prev.filter(d => d !== dia));
+
+      // Atualiza agenda
+      await carregarSlots();
+
+    } catch (e) {
+      console.error(e);
+      notify("Erro ao excluir dia completo.", "error");
+    } finally {
+      setDeletingDay(false);
+      setConfirmDeleteDayOpen(false);
+      setDiaParaExcluir(null);
     }
-
-    notify(
-      `Dia excluído: ${ok} horários cancelados${fail ? `, ${fail} falharam` : ""}.`,
-      fail ? "error" : "success"
-    );
-
-    setDiasLocais(prev => prev.filter(d => d !== dia));
-
-    // Atualiza agenda
-    await carregarSlots();
-
-  } catch (e) {
-    console.error(e);
-    notify("Erro ao excluir dia completo.", "error");
-  } finally {
-    setDeletingDay(false);
-    setConfirmDeleteDayOpen(false);
-    setDiaParaExcluir(null);
   }
-}
 
 
 
@@ -400,24 +400,35 @@ async function excluirDiaCompleto(dia) {
   async function criarVariosSlots(lista) {
     try {
       const criarFn = httpsCallable(functions, "medicos-criarSlot");
+
       let okCount = 0;
+      let skipCount = 0;
       let failCount = 0;
 
       for (const item of lista) {
         try {
-          await criarFn({
+          const res = await criarFn({
             medicoId,
             data: item.data,
             hora: item.hora
           });
+
+          if (res.data?.mensagem?.includes("já existe")) {
+            skipCount++;
+            continue;
+          }
+
+
           okCount++;
-        } catch (e) {
+        } catch {
           failCount++;
-          console.warn("Falhou:", item.data, item.hora);
         }
       }
 
-      notify(`${okCount} horários criados. ${failCount > 0 ? failCount + " falharam." : ""}`, "success");
+      notify(
+        `${okCount} horários criados. ${skipCount} ignorados (já existiam). ${failCount > 0 ? failCount + " falharam." : ""}`,
+        failCount ? "error" : "success"
+      );
 
       carregarSlots();
       setShowGerador(false);
@@ -427,6 +438,7 @@ async function excluirDiaCompleto(dia) {
       notify("Erro ao gerar múltiplos horários.", "error");
     }
   }
+
 
 
 
@@ -572,36 +584,36 @@ async function excluirDiaCompleto(dia) {
               <div key={dia} className="border rounded-md p-4 bg-gray-50">
 
 
-                
+
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 gap-2">
 
-  {/* Título da data */}
-  <h3 className="font-semibold text-gray-700">
-    📅 {formatarDataCompleta(dia)}
-  </h3>
+                  {/* Título da data */}
+                  <h3 className="font-semibold text-gray-700">
+                    📅 {formatarDataCompleta(dia)}
+                  </h3>
 
-  <div className="flex items-center gap-3">
-    {/* Botão adicionar horário */}
-    <AdicionarHorarioButton
-      dia={dia}
-      onAdd={adicionarHorario}
-      notify={notify}
-    />
+                  <div className="flex items-center gap-3">
+                    {/* Botão adicionar horário */}
+                    <AdicionarHorarioButton
+                      dia={dia}
+                      onAdd={adicionarHorario}
+                      notify={notify}
+                    />
 
-    {/* Botão EXCLUIR DIA */}
-    <Button
-  type="button"
-  onClick={() => {
-    setDiaParaExcluir(dia);
-    setConfirmDeleteDayOpen(true);
-  }}
-  className="!text-xs !px-3 !py-2 !border !border-gray-950 !bg-white !text-gray-950 hover:!bg-red-100 !max-w-[150px] truncate"
->
-  Excluir dia
-</Button>
+                    {/* Botão EXCLUIR DIA */}
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setDiaParaExcluir(dia);
+                        setConfirmDeleteDayOpen(true);
+                      }}
+                      className="!text-xs !px-3 !py-2 !border !border-gray-950 !bg-white !text-gray-950 hover:!bg-red-100 !max-w-[150px] truncate"
+                    >
+                      Excluir dia
+                    </Button>
 
-  </div>
-</div>
+                  </div>
+                </div>
 
 
                 <ul className="divide-y">
@@ -685,7 +697,7 @@ async function excluirDiaCompleto(dia) {
       />
 
 
-     
+
       <ConfirmModal
         open={confirmDeleteDayOpen}
         title="Excluir dia inteiro"
@@ -790,50 +802,62 @@ function AdicionarHorarioButton({ dia, onAdd, notify }) {
     <Button
       type="button"
       onClick={() => setShowInput(true)}
-      className="!text-xs !px-5 !py-2 !border !border-gray-950 !bg-white !text-gray-950 hover:!bg-yellow-100 whitespace-nowrap flex-shrink"
+      className="!text-xs !px-5 !py-2 !border !border-gray-950 !bg-white !text-gray-950 hover:!bg-green-100 whitespace-nowrap flex-shrink"
     >
-      Adicionar Horário
+      Adicionar horário
     </Button>
-    
+
 
   );
 }
 
-function GerarSlotsModal({
-  open,
-  onClose,
-  onGenerate
-}) {
+function GerarSlotsModal({ open, onClose, onGenerate }) {
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [horaInicio, setHoraInicio] = useState("08:00");
   const [horaFim, setHoraFim] = useState("18:00");
-  const [intervalo, setIntervalo] = useState(60); // minutos
+  const [intervalo, setIntervalo] = useState(60);
   const [creating, setCreating] = useState(false);
-  const [diasSemana, setDiasSemana] = useState
-    ({
-      dom: false,
-      seg: true,
-      ter: true,
-      qua: true,
-      qui: true,
-      sex: true,
-      sab: false
-    });
+  const [previewError, setPreviewError] = useState("");
+  const [finalError, setFinalError] = useState("");
+  const [diasSemana, setDiasSemana] = useState({
+    dom: false,
+    seg: true,
+    ter: true,
+    qua: true,
+    qui: true,
+    sex: true,
+    sab: false
+  });
   const [preview, setPreview] = useState([]);
+  const [erro, setErro] = useState("");
 
   if (!open) return null;
 
   function gerarPreview() {
-    const resultado = [];
+    setPreviewError("");
+    setFinalError("");
+
+    if (!dataInicio || !dataFim) {
+      setPreviewError("Selecione as datas de início e fim.");
+      return;
+    }
 
     const dtInicio = new Date(dataInicio);
     const dtFim = new Date(dataFim);
+    const hoje = new Date();
 
-    if (isNaN(dtInicio) || isNaN(dtFim) || dtFim < dtInicio) {
-      alert("Período inválido");
+    if (dtInicio < new Date(todayStr())) {
+      setPreviewError("Não é permitido gerar horários em dias que já passaram.");
       return;
     }
+
+    if (dtFim < dtInicio) {
+      setPreviewError("A data final deve ser igual ou maior que a inicial.");
+      return;
+    }
+
+    const resultado = [];
 
     const diasSemanaMap = {
       0: "dom",
@@ -848,37 +872,56 @@ function GerarSlotsModal({
     const cursor = new Date(dtInicio);
 
     while (cursor <= dtFim) {
-      const nomeDia = diasSemanaMap[cursor.getDay()];
+      const diaSemana = diasSemanaMap[cursor.getDay()];
 
-      if (diasSemana[nomeDia]) {
-        // gerando horários do dia
-        let horaAtual = horaInicio;
+      if (diasSemana[diaSemana]) {
+        let [h, m] = horaInicio.split(":").map(Number);
+        const [endH, endM] = horaFim.split(":").map(Number);
 
-        while (horaAtual <= horaFim) {
+        let atualMin = h * 60 + m;
+        const fimMin = endH * 60 + endM;
+
+        while (atualMin < fimMin) {
+          const hh = String(Math.floor(atualMin / 60)).padStart(2, "0");
+          const mm = String(atualMin % 60).padStart(2, "0");
+          const horaStr = `${hh}:${mm}`;
+
+          const dataISO = cursor.toLocaleDateString("sv-SE"); // yyyy-mm-dd
+
+          // BLOQUEAR horários passados
+          if (isPastDateTime(dataISO, horaStr)) {
+            atualMin += intervalo;
+            continue; // apenas pula, não gera erro
+          }
+
           resultado.push({
-            data: cursor.toISOString().slice(0, 10), // yyyy-mm-dd
-            hora: horaAtual
+            data: dataISO,
+            hora: horaStr
           });
 
-          // avança intervalo
-          const [H, M] = horaAtual.split(":").map(Number);
-          const next = new Date(cursor);
-          next.setHours(H, M + intervalo, 0, 0);
-          horaAtual = `${String(next.getHours()).padStart(2, "0")}:${String(next.getMinutes()).padStart(2, "0")}`;
+          atualMin += intervalo;
         }
       }
 
       cursor.setDate(cursor.getDate() + 1);
     }
 
+    if (resultado.length === 0) {
+      setPreviewError("Nenhum horário válido foi gerado.");
+      return;
+    }
+
     setPreview(resultado);
   }
+
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={() => !creating && onClose()}
+        onClick={() => {
+          if (!creating) onClose();
+        }}
       />
 
 
@@ -886,18 +929,33 @@ function GerarSlotsModal({
 
         <h2 className="text-xl font-semibold">Gerar Vários Horários</h2>
 
-        {/* PERÍODO */}
+        {/* ERRO */}
+        {erro && (
+          <div className="border border-red-400 bg-red-50 text-red-700 rounded-md px-3 py-2 text-sm">
+            ⚠ {erro}
+          </div>
+        )}
+
+        {/* CAMPOS */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-sm font-medium">Data início:</p>
-            <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)}
-              className="w-full border px-2 py-1 rounded" />
+            <input
+              type="date"
+              value={dataInicio}
+              onChange={(e) => setDataInicio(e.target.value)}
+              className="w-full border px-2 py-1 rounded"
+            />
           </div>
 
           <div>
             <p className="text-sm font-medium">Data fim:</p>
-            <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)}
-              className="w-full border px-2 py-1 rounded" />
+            <input
+              type="date"
+              value={dataFim}
+              onChange={(e) => setDataFim(e.target.value)}
+              className="w-full border px-2 py-1 rounded"
+            />
           </div>
         </div>
 
@@ -908,8 +966,8 @@ function GerarSlotsModal({
             {Object.keys(diasSemana).map((d) => (
               <button
                 key={d}
-                className={`px-2 py-1 border rounded text-sm 
-                  ${diasSemana[d] ? "bg-yellow-400 text-black" : "bg-gray-200"}`}
+                className={`px-2 py-1 border rounded text-sm ${diasSemana[d] ? "bg-yellow-400 text-black" : "bg-gray-200"
+                  }`}
                 onClick={() =>
                   setDiasSemana((prev) => ({ ...prev, [d]: !prev[d] }))
                 }
@@ -924,21 +982,33 @@ function GerarSlotsModal({
         <div className="grid grid-cols-3 gap-4">
           <div>
             <p className="text-sm font-medium">Hora início:</p>
-            <input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)}
-              className="w-full border px-2 py-1 rounded" />
+            <input
+              type="time"
+              value={horaInicio}
+              onChange={(e) => setHoraInicio(e.target.value)}
+              className="w-full border px-2 py-1 rounded"
+            />
           </div>
 
           <div>
             <p className="text-sm font-medium">Hora fim:</p>
-            <input type="time" value={horaFim} onChange={(e) => setHoraFim(e.target.value)}
-              className="w-full border px-2 py-1 rounded" />
+            <input
+              type="time"
+              value={horaFim}
+              onChange={(e) => setHoraFim(e.target.value)}
+              className="w-full border px-2 py-1 rounded"
+            />
           </div>
 
           <div>
             <p className="text-sm font-medium">Intervalo (min):</p>
-            <input type="number" min="5" value={intervalo}
+            <input
+              type="number"
+              min="5"
+              value={intervalo}
               onChange={(e) => setIntervalo(Number(e.target.value))}
-              className="w-full border px-2 py-1 rounded" />
+              className="w-full border px-2 py-1 rounded"
+            />
           </div>
         </div>
 
@@ -950,11 +1020,15 @@ function GerarSlotsModal({
           Gerar pré-visualização
         </button>
 
-        {/* LISTA DE PREVIEW */}
+        {previewError && (
+          <p className="text-red-600 text-sm">{previewError}</p>
+        )}
+
+
+        {/* LISTA PREVIEW */}
         {preview.length > 0 && (
           <div className="max-h-48 overflow-y-auto border p-3 rounded bg-gray-50">
             <p className="text-sm font-medium mb-2">{preview.length} horários gerados:</p>
-
             <ul className="text-sm divide-y">
               {preview.map((p, i) => (
                 <li key={i} className="py-1">
@@ -965,7 +1039,7 @@ function GerarSlotsModal({
           </div>
         )}
 
-        {/* BOTÕES FINAIS */}
+        {/* AÇÕES */}
         <div className="flex justify-end gap-3">
           <button
             className="px-4 py-2 bg-gray-300 rounded"
@@ -975,13 +1049,25 @@ function GerarSlotsModal({
             Cancelar
           </button>
 
-
           <button
-            className="px-4 py-2 bg-green-600 text-white rounded flex items-center gap-2"
+            className={`px-4 py-2 rounded flex items-center gap-2 text-white 
+    ${preview.length === 0 || creating ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
             disabled={preview.length === 0 || creating}
             onClick={async () => {
+              if (preview.length === 0) {
+                setFinalError("Gere a pré-visualização antes de confirmar.");
+                return;
+              }
+
+              setFinalError("");
               setCreating(true);
-              await onGenerate(preview);
+
+              try {
+                await onGenerate(preview);
+              } catch {
+                setFinalError("Erro ao criar horários. Tente novamente.");
+              }
+
               setCreating(false);
             }}
           >
@@ -1011,10 +1097,15 @@ function GerarSlotsModal({
             {creating ? "Criando horários..." : "Confirmar criação"}
           </button>
 
-        </div>
+          {finalError && (
+            <p className="text-red-600 text-sm mt-2">{finalError}</p>
+          )}
 
+        </div>
       </div>
     </div>
   );
 }
+
+
 

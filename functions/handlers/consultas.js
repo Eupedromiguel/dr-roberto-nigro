@@ -159,6 +159,7 @@ exports.criarConsulta = onCall(async (request) => {
       valorteleConsulta: tipoAtendimento === "particular" ? valorteleConsulta : null,
 
       status: "agendado",
+      notificacaoStatus: tipoAtendimento === "convenio" ? "pendente" : null,
       criadoEm: admin.firestore.FieldValue.serverTimestamp(),
       atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
     });
