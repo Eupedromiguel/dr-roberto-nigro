@@ -1042,7 +1042,7 @@ function GerarSlotsModal({ open, onClose, onGenerate }) {
         {/* AÇÕES */}
         <div className="flex justify-end gap-3">
           <button
-            className="px-4 py-2 bg-gray-300 rounded"
+            className="px-4 py-2 bg-gray-300 hover:bg-gray-400 rounded"
             onClick={() => !creating && onClose()}
             disabled={creating}
           >

@@ -26,7 +26,6 @@ export default function SidebarAdmin() {
   const menus = [
     { label: "Início", path: "/", icon: Home },
     { label: "Meu perfil", path: "/perfil", icon: Settings },
-    { label: "Unidades", path: "/unidades", icon: MapPin },
     { label: "Gerenciar usuários", path: "/admin/usuarios", icon: Users },
     { label: "Gerenciar médicos", path: "/admin/medicos", icon: Stethoscope },
     { label: "Notificações", path: "/admin/notificacoes", icon: Bell },
