@@ -159,10 +159,67 @@ exports.atualizarSlot = onCall(async (request) => {
   }
 });
 
+/**
+ * ==========================================================
+ * REMOVER SLOT DEFINITIVO
+ * ==========================================================
+ */
+
+exports.removerSlotDefinitivo = onCall(async (request) => {
+  if (!request.auth)
+    throw new HttpsError("unauthenticated", "Usuário não autenticado.");
+
+  const role = request.auth.token.role;
+  const uid = request.auth.uid;
+  const { slotId } = request.data || {};
+
+  if (!slotId)
+    throw new HttpsError("invalid-argument", "slotId obrigatório.");
+
+  if (role !== "doctor" && role !== "admin")
+    throw new HttpsError("permission-denied", "Permissão negada.");
+
+  try {
+    const slotRef = db.collection("availability_slots").doc(slotId);
+    const snap = await slotRef.get();
+
+    if (!snap.exists)
+      throw new HttpsError("not-found", "Slot não encontrado.");
+
+    const slot = snap.data();
+
+    // Médico só pode excluir seus próprios slots
+    if (role === "doctor" && slot.medicoId !== uid)
+      throw new HttpsError("permission-denied", "Você não pode excluir slots de outro médico.");
+
+    // Apagar consultas vinculadas
+    const consultasSnap = await db
+      .collection("appointments")
+      .where("slotId", "==", slotId)
+      .get();
+
+    for (const doc of consultasSnap.docs) {
+      await doc.ref.delete();
+    }
+
+    // APAGAR slot
+    await slotRef.delete();
+
+    console.log(`🗑️ Slot ${slotId} DELETADO definitivamente por ${role} ${uid}`);
+
+    return { sucesso: true, mensagem: "Slot deletado definitivamente." };
+
+  } catch (error) {
+    console.error("Erro ao deletar slot:", error);
+    throw new HttpsError("internal", "Erro ao deletar slot.", error.message);
+  }
+});
+
+
 
 /**
  * ==========================================================
- * Cancelar slot (sem excluir)
+ * Cancelar slot
  * ==========================================================
  */
 exports.deletarSlot = onCall(async (request) => {

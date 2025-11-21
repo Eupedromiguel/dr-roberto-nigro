@@ -156,6 +156,14 @@ export default function AgendaScreen() {
   const [confirmDeleteDayOpen, setConfirmDeleteDayOpen] = useState(false);
   const [diaParaExcluir, setDiaParaExcluir] = useState(null);
   const [deletingDay, setDeletingDay] = useState(false);
+  const [modalBloqueioDia, setModalBloqueioDia] = useState(false);
+  const [diasOcultos, setDiasOcultos] = useState([]);
+  const [confirmDeleteDefinitivoOpen, setConfirmDeleteDefinitivoOpen] = useState(false);
+  const [diaParaRemoverDefinitivo, setDiaParaRemoverDefinitivo] = useState(null);
+  const [removendoDefinitivo, setRemovendoDefinitivo] = useState(false);
+
+
+
 
 
 
@@ -279,6 +287,67 @@ export default function AgendaScreen() {
     if (!medicoId) return;
     carregarSlots();
   }, [medicoId]);
+
+
+
+
+  async function removerDiaCompletoDefinitivo(dia) {
+    try {
+      const slotsDoDia = slots.filter(s => s.data === dia);
+
+      const removerFn = httpsCallable(functions, "medicos-removerSlotDefinitivo");
+
+      let ok = 0, fail = 0;
+
+      for (const slot of slotsDoDia) {
+        try {
+          await removerFn({ slotId: slot.id });
+          ok++;
+        } catch {
+          fail++;
+        }
+      }
+
+      notify(
+        `Dia removido: ${ok} slots apagados definitivamente${fail ? `, ${fail} falharam` : ""
+        }.`,
+        fail ? "error" : "success"
+      );
+
+      // Remove do estado local
+      setSlots(prev => prev.filter(s => s.data !== dia));
+      setDiasLocais(prev => prev.filter(d => d !== dia));
+
+    } catch (e) {
+      console.error(e);
+      notify("Erro ao remover dia.", "error");
+    }
+  }
+
+
+
+  async function confirmarRemocaoDefinitiva() {
+    if (!diaParaRemoverDefinitivo) return;
+
+    try {
+      setRemovendoDefinitivo(true);
+
+      await removerDiaCompletoDefinitivo(diaParaRemoverDefinitivo);
+
+      notify("Dia removido definitivamente.", "success");
+    } catch (e) {
+      console.error(e);
+      notify("Erro ao remover dia.", "error");
+    } finally {
+      setRemovendoDefinitivo(false);
+      setConfirmDeleteDefinitivoOpen(false);
+      setDiaParaRemoverDefinitivo(null);
+    }
+  }
+
+
+
+
 
 
   function adicionarDia() {
@@ -471,11 +540,48 @@ export default function AgendaScreen() {
   const todosOsDias = Array.from(new Set([...Object.keys(slotsPorData), ...diasLocais])).sort(
     (a, b) => new Date(a) - new Date(b)
   );
-  const diasFuturos = todosOsDias.filter((dia) => dia >= todayStr());
+  const diasFuturos = todosOsDias.filter(
+    (dia) => dia >= todayStr() && !diasOcultos.includes(dia)
+  );
+
+
 
   return (
     <>
       <Toaster ref={toastRef} />
+
+
+
+
+      {/* MODAL — Dia não pode ser excluído */}
+      {
+        modalBloqueioDia && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[200]">
+            <div className="bg-white rounded-xl p-6 max-w-md w-[90%] shadow-xl text-center">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                Não é possível excluir este dia
+              </h3>
+
+              <p className="text-gray-700 mb-6 text-sm">
+                Você só pode cancelar dias sem compromissos.
+                Antes, verifique-os na seção <b>Agenda / Consultas</b>,
+                cancele consultas ou remarque os retornos, e depois tente novamente.
+              </p>
+
+              <button
+                onClick={() => setModalBloqueioDia(false)}
+                className="bg-gray-900 hover:bg-yellow-500 text-white px-5 py-2 rounded-md text-sm"
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        )
+      }
+
+
+
+
 
       {loading ? (
         <div className="max-w-4xl mx-auto bg-white shadow rounded-md p-6 animate-pulse space-y-6">
@@ -585,35 +691,82 @@ export default function AgendaScreen() {
 
 
 
+
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 gap-2">
 
-                  {/* Título da data */}
-                  <h3 className="font-semibold text-gray-700">
-                    📅 {formatarDataCompleta(dia)}
-                  </h3>
+                  {/* Título + botão X */}
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-gray-700">
+                      📅 {formatarDataCompleta(dia)}
+                    </h3>
 
+                    {(() => {
+                      const slotsDoDia = slotsPorData[dia] || [];
+                      const podeOcultar = slotsDoDia.every(
+                        (s) => s.status === "livre" || s.status === "cancelado"
+                      );
+
+
+
+                      return (
+                        podeOcultar && (
+                          <button
+                            onClick={() => {
+                              setDiaParaRemoverDefinitivo(dia);
+                              setConfirmDeleteDefinitivoOpen(true);
+                            }}
+                            className="
+    text-red-400 
+    hover:text-red-500 
+    text-xs
+    font-semibold 
+    px-2
+    py-1
+    rounded 
+    transition 
+    hover:bg-red-500/10
+  "
+                            title="Apagar definitivamente este dia e todos os slots"
+                          >
+                            Deletar
+                          </button>
+
+
+                        )
+                      );
+                    })()}
+                  </div>
+
+                  {/* Botões Adicionar horário + Cancelar dia */}
                   <div className="flex items-center gap-3">
-                    {/* Botão adicionar horário */}
                     <AdicionarHorarioButton
                       dia={dia}
                       onAdd={adicionarHorario}
                       notify={notify}
                     />
 
-                    {/* Botão EXCLUIR DIA */}
                     <Button
                       type="button"
                       onClick={() => {
+                        const slotsDoDia = slotsPorData[dia] || [];
+                        const existeOcupado = slotsDoDia.some(s => s.status === "ocupado");
+
+                        if (existeOcupado) {
+                          setModalBloqueioDia(true);
+                          return;
+                        }
+
                         setDiaParaExcluir(dia);
                         setConfirmDeleteDayOpen(true);
                       }}
                       className="!text-xs !px-3 !py-2 !border !border-gray-950 !bg-white !text-gray-950 hover:!bg-red-100 !max-w-[150px] truncate"
                     >
-                      Excluir dia
+                      Cancelar todos
                     </Button>
-
                   </div>
+
                 </div>
+
 
 
                 <ul className="divide-y">
@@ -670,13 +823,20 @@ export default function AgendaScreen() {
                         ) : (
                           <button
                             onClick={() => {
+                              if (slot.status === "ocupado") {
+                                setModalBloqueioDia(true);
+                                return;
+                              }
+
+                              // Continua fluxo normal
                               setConfirmOpen(true);
                               setConfirmTargetId(slot.id);
                             }}
-                            className="text-sm text-gray-950 hover:underline"
+                            className="text-sm text-red-500 hover:underline"
                           >
-                            Remover
+                            Cancelar
                           </button>
+
                         )}
                       </li>
                     ))
@@ -721,6 +881,21 @@ export default function AgendaScreen() {
         onClose={() => !confirmLoading && setConfirmOpen(false)}
         loading={confirmLoading}
       />
+
+
+      <ConfirmModal
+        open={confirmDeleteDefinitivoOpen}
+        title="Remover definitivamente"
+        message="Tem certeza? TODOS os slots deste dia serão APAGADOS do sistema. Esta ação não pode ser desfeita."
+        confirmText="Apagar dia"
+        cancelText="Cancelar"
+        loading={removendoDefinitivo}
+        onConfirm={confirmarRemocaoDefinitiva}
+        onClose={() =>
+          !removendoDefinitivo && setConfirmDeleteDefinitivoOpen(false)
+        }
+      />
+
 
 
 
@@ -784,7 +959,7 @@ function AdicionarHorarioButton({ dia, onAdd, notify }) {
         <button
           type="submit"
           disabled={saving}
-          className="text-sm px-3 py-1 border border-gray-950 rounded-md bg-white text-gray-950 hover:bg-yellow-100 transition-all disabled:opacity-60"
+          className="text-sm px-3 py-1 border border-gray-950 rounded-md bg-white text-gray-950 hover:bg-green-100 transition-all disabled:opacity-60"
         >
           {saving ? "Salvando..." : "Salvar"}
         </button>
@@ -870,6 +1045,7 @@ function GerarSlotsModal({ open, onClose, onGenerate }) {
     };
 
     const cursor = new Date(dtInicio);
+
 
     while (cursor <= dtFim) {
       const diaSemana = diasSemanaMap[cursor.getDay()];

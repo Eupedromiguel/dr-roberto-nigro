@@ -435,7 +435,8 @@ export default function ConsultasScreen() {
       });
 
       if (res.data?.sucesso) {
-        setMensagem("Retorno agendado com sucesso.");
+        showToast("Retorno agendado com sucesso.");
+
 
         // Atualiza a lista local com o novo retorno
         const slotData = slotsDisponiveis.find((s) => s.id === slotSelecionado);
@@ -494,30 +495,35 @@ async function carregarSlotsLivresFuturos() {
       )
     );
 
-    const hoje = new Date();
-    const hojeISO = hoje.toISOString().split("T")[0]; // YYYY-MM-DD
+    const agora = new Date(); // Data e hora atuais
 
     const lista = snap.docs
       .map((doc) => {
         const s = doc.data();
 
-        // converte "DD-MM-YYYY" → "YYYY-MM-DD"
+        // Converte "DD-MM-YYYY" → "YYYY-MM-DD"
         const [dd, mm, yyyy] = s.data.split("-");
         const dataISO = `${yyyy}-${mm}-${dd}`;
+
+
+        const [hh, min] = s.hora.split(":");
+        const dataHoraSlot = new Date(
+          Number(yyyy),
+          Number(mm) - 1,
+          Number(dd),
+          Number(hh),
+          Number(min)
+        );
 
         return {
           id: doc.id,
           ...s,
           dataISO,
+          dataHoraSlot,
         };
       })
-      .filter((slot) => slot.dataISO >= hojeISO)
-      .sort((a, b) => {
-        if (a.dataISO === b.dataISO) {
-          return a.hora.localeCompare(b.hora);
-        }
-        return a.dataISO.localeCompare(b.dataISO);
-      });
+      .filter((slot) => slot.dataHoraSlot >= agora) 
+      .sort((a, b) => a.dataHoraSlot - b.dataHoraSlot);
 
     setSlotsDisponiveis(lista);
   } catch (error) {
@@ -526,6 +532,7 @@ async function carregarSlotsLivresFuturos() {
     setCarregandoSlots(false);
   }
 }
+
 
 
 
@@ -887,11 +894,12 @@ async function carregarSlotsLivresFuturos() {
                         ? "Teleconsulta"
                         : "Presencial"}
                     </p>
-                    {c.retornoAgendado.unidade && (
+                    {c.retornoAgendado.tipoRetorno === "presencial" && c.retornoAgendado.unidade && (
                       <p>
                         <b>Unidade:</b> {c.retornoAgendado.unidade}
                       </p>
                     )}
+
                     {c.retornoAgendado.observacoes && (
                       <p>
                         <b>Obs:</b> {c.retornoAgendado.observacoes}
@@ -1185,51 +1193,51 @@ async function carregarSlotsLivresFuturos() {
                 )}
 
 
-{/* Lista de horários disponíveis */}
-<div>
-  <label className="block text-sm font-medium text-gray-700 mb-1">
-    Slots disponíveis
-  </label>
+                {/* Lista de horários disponíveis */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Slots disponíveis
+                  </label>
 
-  {carregandoSlots ? (
-    <p className="text-gray-600 text-sm">Carregando horários...</p>
-  ) : slotsDisponiveis.length === 0 ? (
-    <p className="text-red-600 text-sm">Nenhum horário disponível.</p>
-  ) : (
-    <div className="relative">
-  <select
-    value={slotSelecionado || ""}
-    onChange={(e) => setSlotSelecionado(e.target.value)}
-    className="appearance-none w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900
+                  {carregandoSlots ? (
+                    <p className="text-gray-600 text-sm">Carregando horários...</p>
+                  ) : slotsDisponiveis.length === 0 ? (
+                    <p className="text-red-600 text-sm">Nenhum horário disponível.</p>
+                  ) : (
+                    <div className="relative">
+                      <select
+                        value={slotSelecionado || ""}
+                        onChange={(e) => setSlotSelecionado(e.target.value)}
+                        className="appearance-none w-full border border-gray-300 rounded-md px-3 py-2 text-gray-900
                focus:outline-none focus:ring-2 focus:ring-yellow-400 pr-8"
-  >
-    <option value="">Selecione um horário</option>
-    {slotsDisponiveis.map((slot) => (
-      <option key={slot.id} value={slot.id}>
-        {slot.data.replace(/-/g, "/")} — {slot.hora}
-      </option>
-    ))}
-  </select>
+                      >
+                        <option value="">Selecione um horário</option>
+                        {slotsDisponiveis.map((slot) => (
+                          <option key={slot.id} value={slot.id}>
+                            {slot.data.replace(/-/g, "/")} — {slot.hora}
+                          </option>
+                        ))}
+                      </select>
 
-  {/* Ícone da setinha personalizada */}
-  <svg
-    className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
-    xmlns="http://www.w3.org/2000/svg"
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M19 9l-7 7-7-7"
-    />
-  </svg>
-</div>
+                      {/* Ícone da setinha personalizada */}
+                      <svg
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </div>
 
-  )}
-</div>
+                  )}
+                </div>
 
 
 
@@ -1398,7 +1406,7 @@ async function carregarSlotsLivresFuturos() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
-            className="fixed top-6 right-6 bg-red-100 text-red px-4 py-2 rounded-md shadow-lg z-50"
+            className="fixed top-6 right-6 bg-green-100 text-gray-950 px-4 py-2 rounded-md shadow-lg z-50"
           >
             {toastMsg}
           </motion.div>
