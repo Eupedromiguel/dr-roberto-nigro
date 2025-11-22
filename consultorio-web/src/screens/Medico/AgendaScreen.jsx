@@ -7,12 +7,64 @@ import { IMaskInput } from "react-imask";
 import { useAuth } from "../../context/AuthContext";
 import { getFirestore, doc, getDoc } from "firebase/firestore";
 import { useNavigate, useParams } from "react-router-dom";
+import ConsultaCard from "../../components/ConsultaCard";
 
 
 
 // ------------------------------
 // Helpers globais
 // ------------------------------
+
+
+
+
+function ModalConsultaWrapper({ open, consulta, onClose }) {
+  if (!open || !consulta) return null;
+
+  return (
+    <div className="fixed inset-0 z-[300] bg-black/40 flex items-center justify-center">
+      <div className="rounded-xl p-8 w-[95%] max-w-lg shadow-xl relative">
+
+
+        <button
+  onClick={onClose}
+  className="absolute top-1 right-3 text-gray-400 hover:text-red-400 text-lg"
+>
+  ✕
+</button>
+
+
+        <ConsultaCard
+          consulta={consulta}
+          paciente={{
+            nome: consulta.paciente?.nome || consulta.pacienteNome || "Paciente",
+            idade: consulta.paciente?.idade ?? null,
+            telefone: consulta.paciente?.telefone ?? "(sem telefone)",
+            cpf: consulta.paciente?.cpf ?? "",
+            sexoBiologico: consulta.paciente?.sexoBiologico ?? "",
+          }}
+          onConcluir={() => {}}
+          onCancelar={() => {}}
+          onAgendarRetorno={() => {}}
+          onRemarcarRetorno={() => {}}
+          formatarStatus={(s) => s}
+          formatarDataHora={(s) => s}
+          gerarLinkTelefone={() => ""}
+        />
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
+
+
+
+
+
 function todayStr() {
   const now = new Date();
   const y = now.getFullYear();
@@ -35,9 +87,6 @@ function isPastDateTime(dia, hora) {
 }
 
 
-// ------------------------------
-// Modal simples
-// ------------------------------
 function ConfirmModal({
   open,
   title = "Confirmar",
@@ -161,8 +210,38 @@ export default function AgendaScreen() {
   const [confirmDeleteDefinitivoOpen, setConfirmDeleteDefinitivoOpen] = useState(false);
   const [diaParaRemoverDefinitivo, setDiaParaRemoverDefinitivo] = useState(null);
   const [removendoDefinitivo, setRemovendoDefinitivo] = useState(false);
+  const [diaComInputAberto, setDiaComInputAberto] = useState(null);
+  const [modalConsultaOpen, setModalConsultaOpen] = useState(false);
+  const [consultaSelecionada, setConsultaSelecionada] = useState(null);
 
 
+  
+
+
+  async function abrirConsultaPorSlot(slotId) {
+    try {
+
+      const listar = httpsCallable(functions, "consultas-listarConsultas");
+      const res = await listar({ medicoId });
+
+      const todas = res.data?.consultas || [];
+
+
+      const consulta = todas.find(c => c.slotId === slotId);
+
+      if (!consulta) {
+        notify("Nenhuma consulta ligada a este horário.", "error");
+        return;
+      }
+
+
+      setConsultaSelecionada(consulta);
+      setModalConsultaOpen(true);
+    } catch (e) {
+      console.error("Erro:", e);
+      notify("Erro ao carregar consulta.", "error");
+    }
+  }
 
 
 
@@ -285,8 +364,10 @@ export default function AgendaScreen() {
 
   useEffect(() => {
     if (!medicoId) return;
+    setLoading(true);
     carregarSlots();
   }, [medicoId]);
+
 
 
 
@@ -309,13 +390,14 @@ export default function AgendaScreen() {
       }
 
       notify(
-        `Dia removido: ${ok} slots apagados definitivamente${fail ? `, ${fail} falharam` : ""
-        }.`,
+        `Dia removido: ${ok} slots apagados definitivamente${fail ? `, ${fail} falharam` : ""}.`,
         fail ? "error" : "success"
       );
 
-      // Remove do estado local
-      setSlots(prev => prev.filter(s => s.data !== dia));
+
+      await carregarSlots();
+
+
       setDiasLocais(prev => prev.filter(d => d !== dia));
 
     } catch (e) {
@@ -323,6 +405,7 @@ export default function AgendaScreen() {
       notify("Erro ao remover dia.", "error");
     }
   }
+
 
 
 
@@ -432,6 +515,7 @@ export default function AgendaScreen() {
       const res = await reativarFn({ slotId });
       if (res.data?.sucesso) {
         setSlots((prev) => prev.map((s) => (s.id === slotId ? { ...s, status: "livre" } : s)));
+        await carregarSlots();
         notify("Horário reaberto com sucesso.", "success");
       } else notify("Erro ao reabrir horário.", "error");
     } catch (err) {
@@ -456,8 +540,8 @@ export default function AgendaScreen() {
       const criarFn = httpsCallable(functions, "medicos-criarSlot");
       const res = await criarFn({ medicoId, data: dia, hora });
       if (res.data?.sucesso) {
-        notify(`✅ Horário ${hora} adicionado em ${formatarDataCompleta(dia)}.`, "success");
-        carregarSlots();
+        notify(`Horário ${hora} adicionado em ${formatarDataCompleta(dia)}.`, "success");
+        await carregarSlots();
       } else notify(res.data?.mensagem || "Erro ao criar horário.", "error");
     } catch (err) {
       console.error("Erro ao criar:", err);
@@ -499,7 +583,7 @@ export default function AgendaScreen() {
         failCount ? "error" : "success"
       );
 
-      carregarSlots();
+      await carregarSlots();
       setShowGerador(false);
 
     } catch (err) {
@@ -521,10 +605,12 @@ export default function AgendaScreen() {
           prev.map((s) => (s.id === confirmTargetId ? { ...s, status: "cancelado" } : s))
         );
         notify("Horário cancelado.", "success");
+        await carregarSlots();
       } else notify("Erro ao cancelar horário.", "error");
     } catch (err) {
       console.error("Erro ao cancelar:", err);
       notify("Erro ao cancelar horário.", "error");
+
     } finally {
       setConfirmLoading(false);
       setConfirmOpen(false);
@@ -633,11 +719,12 @@ export default function AgendaScreen() {
               {!showInputDia ? (
                 // BOTÃO: MOSTRAR INPUT
                 <Button
-                  className="w-full sm:w-auto !bg-gray-800 hover:!bg-yellow-400 text-white font-medium px-6 py-2 rounded-md transition"
-                  onClick={() => setShowInputDia(true)}
-                >
-                  Adicionar dia
-                </Button>
+  className="w-full sm:w-auto !bg-gray-800 hover:!bg-yellow-400 text-white font-medium px-6 py-2 rounded-md transition"
+  onClick={() => setShowInputDia(true)}
+>
+  Adicionar dia
+</Button>
+
               ) : (
                 // INPUT VISÍVEL APÓS CLICAR
                 <div className="flex flex-col sm:flex-row gap-2 items-end">
@@ -743,26 +830,35 @@ export default function AgendaScreen() {
                       dia={dia}
                       onAdd={adicionarHorario}
                       notify={notify}
+                      diaComInputAberto={diaComInputAberto}
+                      setDiaComInputAberto={setDiaComInputAberto}
                     />
 
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        const slotsDoDia = slotsPorData[dia] || [];
-                        const existeOcupado = slotsDoDia.some(s => s.status === "ocupado");
 
-                        if (existeOcupado) {
-                          setModalBloqueioDia(true);
-                          return;
-                        }
+                    {diaComInputAberto !== dia && (
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          const slotsDoDia = slotsPorData[dia] || [];
+                          const existeOcupado = slotsDoDia.some(s => s.status === "ocupado");
 
-                        setDiaParaExcluir(dia);
-                        setConfirmDeleteDayOpen(true);
-                      }}
-                      className="!text-xs !px-3 !py-2 !border !border-gray-950 !bg-white !text-gray-950 hover:!bg-red-100 !max-w-[150px] truncate"
-                    >
-                      Cancelar todos
-                    </Button>
+                          if (existeOcupado) {
+                            setModalBloqueioDia(true);
+                            return;
+                          }
+
+                          setDiaParaExcluir(dia);
+                          setConfirmDeleteDayOpen(true);
+                        }}
+                        className="!text-xs !px-3 !py-2 !border !border-gray-950 !bg-white !text-gray-950 hover:!bg-red-100 !max-w-[150px] truncate"
+                      >
+                        Cancelar todos
+                      </Button>
+                    )}
+
+
+
+
                   </div>
 
                 </div>
@@ -773,20 +869,25 @@ export default function AgendaScreen() {
                   {slotsPorData[dia]?.length ? (
                     slotsPorData[dia].map((slot) => (
                       <li key={slot.id} className="py-2 flex justify-between items-center">
-                        <span>
+                        <span
+  className={
+    slot.status === "ocupado"
+      ? "cursor-pointer hover:underline"
+      : "cursor-default"
+  }
+  onClick={() => {
+    if (slot.status === "ocupado") abrirConsultaPorSlot(slot.id);
+  }}
+>
+
+
                           ⏰ {slot.hora} —{" "}
-                          <b
-                            className={
-                              slot.status === "livre"
-                                ? "text-green-600"
-                                : slot.status === "ocupado"
-                                  ? "text-blue-600"
-                                  : "text-red-600"
-                            }
-                          >
+                          <b className={slot.status === "ocupado" ? "text-blue-600" : slot.status === "livre" ? "text-green-600" : "text-red-600"}>
                             {slot.status}
                           </b>
                         </span>
+
+
                         {slot.status === "cancelado" ? (
                           <button
                             onClick={() => reabrirSlot(slot.id)}
@@ -820,15 +921,16 @@ export default function AgendaScreen() {
                             )}
                             {reabrindoId === slot.id ? "Reabrindo..." : "Reabrir"}
                           </button>
+                        ) : slot.status === "ocupado" ? (
+
+
+                          null
+
                         ) : (
+
+
                           <button
                             onClick={() => {
-                              if (slot.status === "ocupado") {
-                                setModalBloqueioDia(true);
-                                return;
-                              }
-
-                              // Continua fluxo normal
                               setConfirmOpen(true);
                               setConfirmTargetId(slot.id);
                             }}
@@ -836,6 +938,7 @@ export default function AgendaScreen() {
                           >
                             Cancelar
                           </button>
+
 
                         )}
                       </li>
@@ -870,6 +973,14 @@ export default function AgendaScreen() {
       />
 
 
+<ModalConsultaWrapper
+  open={modalConsultaOpen}
+  consulta={consultaSelecionada}
+  onClose={() => setModalConsultaOpen(false)}
+/>
+
+
+
 
       <ConfirmModal
         open={confirmOpen}
@@ -896,40 +1007,29 @@ export default function AgendaScreen() {
         }
       />
 
-
-
-
     </>
   );
 }
 
 // Adicionar Horário 
 
-function AdicionarHorarioButton({ dia, onAdd, notify }) {
+function AdicionarHorarioButton({
+  dia,
+  onAdd,
+  notify,
+  diaComInputAberto,
+  setDiaComInputAberto
+}) {
   const [hora, setHora] = useState("");
-  const [showInput, setShowInput] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-
     const regexHora = /^[0-2][0-9]:[0-5][0-9]$/;
 
     if (!regexHora.test(hora)) {
-      notify("Formato inválido. Use HH:MM (ex: 09:30).", "error");
-      return;
-    }
-
-
-    const [H, M] = hora.split(":").map(Number);
-    if (H > 23 || M > 59) {
-      notify("Horário inválido. Máximo permitido é 23:59.", "error");
-      return;
-    }
-
-    if (dia === todayStr() && hora <= nowTimeStr()) {
-      notify("Não é possível adicionar horário no passado.", "error");
+      notify("Formato inválido. Use HH:MM.", "error");
       return;
     }
 
@@ -937,54 +1037,56 @@ function AdicionarHorarioButton({ dia, onAdd, notify }) {
     await onAdd(dia, hora);
     setSaving(false);
     setHora("");
-    setShowInput(false);
+    setDiaComInputAberto(null);
   };
 
-
-  if (showInput)
+  if (diaComInputAberto === dia)
     return (
       <form
         onSubmit={handleSubmit}
         className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center"
-        title="Informe o horário no formato HH:MM (00:00–23:59). Horários passados não são permitidos."
       >
         <IMaskInput
           mask="00:00"
           value={hora}
           onAccept={(v) => setHora(v)}
           placeholder="HH:MM"
-          className="border border-gray-400 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 "
+          className="border border-gray-400 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
           required
         />
+
         <button
           type="submit"
           disabled={saving}
-          className="text-sm px-3 py-1 border border-gray-950 rounded-md bg-white text-gray-950 hover:bg-green-100 transition-all disabled:opacity-60"
+          className="text-sm px-3 py-1 border rounded-md bg-white hover:bg-green-100"
         >
           {saving ? "Salvando..." : "Salvar"}
         </button>
+
         <button
           type="button"
-          onClick={() => setShowInput(false)}
-          className="text-sm px-3 py-1 border border-gray-950 rounded-md bg-white text-gray-950 hover:bg-red-100 transition-all"
+          onClick={() => setDiaComInputAberto(null)}
+          className="text-sm px-3 py-1 border rounded-md bg-white hover:bg-red-100"
         >
           Cancelar
         </button>
       </form>
     );
 
+
   return (
     <Button
       type="button"
-      onClick={() => setShowInput(true)}
+      onClick={() => setDiaComInputAberto(dia)}
       className="!text-xs !px-5 !py-2 !border !border-gray-950 !bg-white !text-gray-950 hover:!bg-green-100 whitespace-nowrap flex-shrink"
     >
       Adicionar horário
     </Button>
-
-
   );
 }
+
+
+
 
 function GerarSlotsModal({ open, onClose, onGenerate }) {
   const [dataInicio, setDataInicio] = useState("");
@@ -1276,6 +1378,10 @@ function GerarSlotsModal({ open, onClose, onGenerate }) {
           {finalError && (
             <p className="text-red-600 text-sm mt-2">{finalError}</p>
           )}
+
+
+
+
 
         </div>
       </div>

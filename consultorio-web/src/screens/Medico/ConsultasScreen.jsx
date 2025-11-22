@@ -16,6 +16,8 @@ import {
   getDocs
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import ConsultaCard from "../../components/ConsultaCard";
+
 
 
 // Função de páginação
@@ -479,59 +481,59 @@ export default function ConsultasScreen() {
 
 
 
-async function carregarSlotsLivresFuturos() {
-  setCarregandoSlots(true);
-  setSlotsDisponiveis([]);
-  setSlotSelecionado(null);
+  async function carregarSlotsLivresFuturos() {
+    setCarregandoSlots(true);
+    setSlotsDisponiveis([]);
+    setSlotSelecionado(null);
 
-  try {
-    const ref = collection(db, "availability_slots");
+    try {
+      const ref = collection(db, "availability_slots");
 
-    const snap = await getDocs(
-      query(
-        ref,
-        where("medicoId", "==", medicoId),
-        where("status", "==", "livre")
-      )
-    );
+      const snap = await getDocs(
+        query(
+          ref,
+          where("medicoId", "==", medicoId),
+          where("status", "==", "livre")
+        )
+      );
 
-    const agora = new Date(); // Data e hora atuais
+      const agora = new Date(); // Data e hora atuais
 
-    const lista = snap.docs
-      .map((doc) => {
-        const s = doc.data();
+      const lista = snap.docs
+        .map((doc) => {
+          const s = doc.data();
 
-        // Converte "DD-MM-YYYY" → "YYYY-MM-DD"
-        const [dd, mm, yyyy] = s.data.split("-");
-        const dataISO = `${yyyy}-${mm}-${dd}`;
+          // Converte "DD-MM-YYYY" → "YYYY-MM-DD"
+          const [dd, mm, yyyy] = s.data.split("-");
+          const dataISO = `${yyyy}-${mm}-${dd}`;
 
 
-        const [hh, min] = s.hora.split(":");
-        const dataHoraSlot = new Date(
-          Number(yyyy),
-          Number(mm) - 1,
-          Number(dd),
-          Number(hh),
-          Number(min)
-        );
+          const [hh, min] = s.hora.split(":");
+          const dataHoraSlot = new Date(
+            Number(yyyy),
+            Number(mm) - 1,
+            Number(dd),
+            Number(hh),
+            Number(min)
+          );
 
-        return {
-          id: doc.id,
-          ...s,
-          dataISO,
-          dataHoraSlot,
-        };
-      })
-      .filter((slot) => slot.dataHoraSlot >= agora) 
-      .sort((a, b) => a.dataHoraSlot - b.dataHoraSlot);
+          return {
+            id: doc.id,
+            ...s,
+            dataISO,
+            dataHoraSlot,
+          };
+        })
+        .filter((slot) => slot.dataHoraSlot >= agora)
+        .sort((a, b) => a.dataHoraSlot - b.dataHoraSlot);
 
-    setSlotsDisponiveis(lista);
-  } catch (error) {
-    console.error("Erro ao carregar slots:", error);
-  } finally {
-    setCarregandoSlots(false);
+      setSlotsDisponiveis(lista);
+    } catch (error) {
+      console.error("Erro ao carregar slots:", error);
+    } finally {
+      setCarregandoSlots(false);
+    }
   }
-}
 
 
 
@@ -743,248 +745,26 @@ async function carregarSlotsLivresFuturos() {
             const tipo = c.tipoConsulta || "presencial";
 
             return (
-              <li
+              <ConsultaCard
                 key={c.id}
-                className="border border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 p-5"
-              >
-                {/* Cabeçalho com nome do paciente */}
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {paciente?.nome || "Carregando..."}{" "}
-                      {paciente?.idade && (
-                        <span className="text-gray-500 text-sm font-normal">
-                          ({paciente.idade} anos)
-                        </span>
-                      )}
-                    </h3>
-                    {paciente?.sexoBiologico && (
-                      <p className="text-sm mt-0.5">
-                        <b>Sexo biológico:</b>{" "}
-                        <span
-                          className={`${paciente.sexoBiologico === "Feminino"
-                            ? "text-pink-600"
-                            : paciente.sexoBiologico === "Masculino"
-                              ? "text-blue-600"
-                              : "text-gray-700"
-                            } font-medium`}
-                        >
-                          {paciente.sexoBiologico}
-                        </span>
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Status badge */}
-                  <span
-                    className={`px-3 py-1 text-xs font-semibold rounded-full self-start
-        ${c.status === "cancelada"
-                        ? "bg-red-100 text-red-700"
-                        : c.status === "concluida"
-                          ? "bg-green-100 text-green-700"
-                          : c.status === "retorno"
-                            ? "bg-blue-100 text-blue-700"
-                            : "bg-yellow-100 text-yellow-700"
-                      }`}
-                  >
-                    {formatarStatus(c.status)}
-                  </span>
-                </div>
-
-                <div className="space-y-1.5 text-sm text-gray-700">
-                  {paciente?.telefone && paciente.telefone !== "(sem telefone)" && (
-                    <p>
-                      <b>Telefone:</b>{" "}
-                      <a
-                        href={gerarLinkTelefone(paciente.telefone)}
-                        className="text-gray-900 underline"
-                      >
-                        {paciente.telefone}
-                      </a>
-                    </p>
-                  )}
-
-                  {paciente?.cpf && (
-                    <p>
-                      <b>CPF:</b> {paciente.cpf}
-                    </p>
-                  )}
-
-                  <p>
-                    <b>Data e hora:</b> {formatarDataHora(c.horario)}
-                  </p>
-                  <p>
-                    <b>Tipo de consulta:</b>{" "}
-                    {tipo === "teleconsulta" ? "Teleconsulta" : "Presencial"}
-                  </p>
-
-                  {c.tipoAtendimento === "particular" && (
-                    <>
-                      {tipo === "teleconsulta" && c.valorteleConsulta && (
-                        <p>
-                          <b>Valor da teleconsulta:</b>{" "}
-                          <span className="font-semibold text-gray-900">
-                            R$ {parseFloat(c.valorteleConsulta).toFixed(2)}
-                          </span>
-                        </p>
-                      )}
-                      {tipo === "presencial" && c.valorConsulta && (
-                        <p>
-                          <b>Valor presencial:</b>{" "}
-                          <span className="font-semibold text-gray-900">
-                            R$ {parseFloat(c.valorConsulta).toFixed(2)}
-                          </span>
-                        </p>
-                      )}
-                    </>
-                  )}
-
-                  {c.unidade && (
-                    <p>
-                      <b>Unidade:</b> {c.unidade}
-                    </p>
-                  )}
-
-                  {c.tipoAtendimento && (
-                    <p>
-                      <b>Tipo de atendimento:</b> {c.tipoAtendimento}
-                    </p>
-                  )}
-                  {c.convenio && (
-                    <p>
-                      <b>Convênio:</b> {c.convenio}
-                    </p>
-                  )}
-
-
-                  {c.categoria && (
-                    <p>
-                      <b>Categoria:</b> {c.categoria}
-                    </p>
-                  )}
-
-                  {c.carteirinha && (
-                    <p>
-                      <b>Carteirinha:</b> {c.carteirinha}
-                    </p>
-                  )}
-
-
-                  {c.sintomas && (
-                    <div className="mt-2 text-sm text-gray-600 bg-gray-50 p-2 rounded-md border border-gray-100">
-                      <b>Sintomas / Alergias:</b> {c.sintomas}
-                    </div>
-                  )}
-                </div>
-
-                {/* Retorno */}
-                {c.retornoAgendado && (
-                  <div className="mt-4 border-t border-gray-200 bg-yellow-50 pt-3 pb-3 px-3 rounded-lg text-sm">
-
-                    <p className="font-semibold text-gray-900 mb-1">📋 Retorno agendado:</p>
-                    <p>
-                      <b>Data e horário:</b>{" "}
-                      {formatarDataHora(
-                        `${c.retornoAgendado.novaData} ${c.retornoAgendado.novoHorario}`
-                      )}
-                    </p>
-                    <p>
-                      <b>Tipo:</b>{" "}
-                      {c.retornoAgendado.tipoRetorno === "teleconsulta"
-                        ? "Teleconsulta"
-                        : "Presencial"}
-                    </p>
-                    {c.retornoAgendado.tipoRetorno === "presencial" && c.retornoAgendado.unidade && (
-                      <p>
-                        <b>Unidade:</b> {c.retornoAgendado.unidade}
-                      </p>
-                    )}
-
-                    {c.retornoAgendado.observacoes && (
-                      <p>
-                        <b>Obs:</b> {c.retornoAgendado.observacoes}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Botões */}
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {c.status === "agendado" && (
-                    <>
-                      <button
-                        onClick={() => handleConcluir(c.id)}
-                        disabled={loadingConcluirId === c.id}
-                        className={`${loadingConcluirId === c.id
-                          ? "bg-green-400 cursor-not-allowed"
-                          : "bg-green-600 hover:bg-green-700"
-                          } text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-2`}
-                      >
-                        {loadingConcluirId === c.id && (
-                          <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span>
-                        )}
-                        {loadingConcluirId === c.id ? "Concluindo..." : "Concluir"}
-                      </button>
-
-                      <button
-                        onClick={() => handleAbrirModal(c.id)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md text-sm"
-                      >
-                        Cancelar
-                      </button>
-                    </>
-                  )}
-
-                  {c.status === "concluida" && !c.retornoAgendado && (
-                    <button
-                      onClick={() => handleAbrirModalRetorno(c.id)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md text-sm"
-                    >
-                      Agendar Retorno
-                    </button>
-                  )}
-
-                  {c.status === "retorno" && (
-                    <>
-                      <button
-                        onClick={() => {
-                          setConsultaParaRetorno(c.id);
-                          setObservacoes(c.retornoAgendado?.observacoes || "");
-                          setTipoRetorno(c.retornoAgendado?.tipoRetorno || "presencial");
-                          setUnidade(c.retornoAgendado?.unidade || "");
-                          setModalRetorno(true);
-                          carregarSlotsLivresFuturos();
-
-                        }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md text-sm"
-                      >
-                        Remarcar Retorno
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setConsultaParaConcluirRetorno(c.id);
-                          setModalConcluirRetorno(true);
-                        }}
-                        disabled={loadingConcluirId === c.id}
-                        className={`${loadingConcluirId === c.id
-                          ? "bg-green-400 cursor-not-allowed"
-                          : "bg-green-600 hover:bg-green-700"
-                          } text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-2`}
-                      >
-                        {loadingConcluirId === c.id && (
-                          <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span>
-                        )}
-                        {loadingConcluirId === c.id ? "Concluindo..." : "Concluir"}
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                <div className="mt-3 text-[11px] text-gray-400 font-mono bg-gray-50 px-2 py-1 rounded select-all w-fit">
-                  ID: {c.id}
-                </div>
-              </li>
+                consulta={c}
+                paciente={paciente}
+                onConcluir={(id) => handleConcluir(id)}
+                onCancelar={(id) => handleAbrirModal(id)}
+                onAgendarRetorno={(id) => handleAbrirModalRetorno(id)}
+                onRemarcarRetorno={(id) => {
+                  // Remarcar retorno faz o mesmo comportamento que você já usa
+                  setConsultaParaRetorno(id);
+                  setObservacoes(c.retornoAgendado?.observacoes || "");
+                  setTipoRetorno(c.retornoAgendado?.tipoRetorno || "presencial");
+                  setUnidade(c.retornoAgendado?.unidade || "");
+                  setModalRetorno(true);
+                  carregarSlotsLivresFuturos();
+                }}
+                formatarStatus={formatarStatus}
+                formatarDataHora={formatarDataHora}
+                gerarLinkTelefone={gerarLinkTelefone}
+              />
 
             );
           })}
