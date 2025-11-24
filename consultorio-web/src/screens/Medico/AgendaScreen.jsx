@@ -849,7 +849,7 @@ export default function AgendaScreen() {
                           }}
                           className={`${slot.status === "ocupado" ? "cursor-pointer hover:underline" : ""}`}
                         >
-                          ⏰ {slot.hora} —{" "}
+                          {slot.hora} —{" "}
                           <b className={
                             slot.status === "ocupado"
                               ? "text-blue-600"
@@ -1145,11 +1145,61 @@ function GerarSlotsModal({ open, onClose, onGenerate }) {
   const [preview, setPreview] = useState([]);
   const [erro, setErro] = useState("");
 
+
+
+  useEffect(() => {
+    if (!open) {
+      setPreview([]);
+      setPreviewError("");
+      setFinalError("");
+      setDataInicio("");
+      setDataFim("");
+      setHoraInicio("08:00");
+      setHoraFim("18:00");
+      setIntervalo(60);
+    }
+  }, [open]);
+
+
+  useEffect(() => {
+    if (open) {
+      setPreview([]);
+      setPreviewError("");
+      setFinalError("");
+    }
+  }, [
+    dataInicio,
+    dataFim,
+    horaInicio,
+    horaFim,
+    intervalo,
+    diasSemana,
+    open
+  ]);
+
+
+
+
   if (!open) return null;
+
+
+
+  function showFinalError(msg) {
+    setFinalError(msg);
+    setTimeout(() => setFinalError(""), 4000);
+  }
+
 
   function gerarPreview() {
     setPreviewError("");
     setFinalError("");
+
+
+    if (intervalo < 30) {
+      setPreviewError("O intervalo deve ser maior que 30 minutos.");
+      return;
+    }
+
 
     if (!dataInicio || !dataFim) {
       setPreviewError("Selecione as datas de início e fim.");
@@ -1243,7 +1293,15 @@ function GerarSlotsModal({ open, onClose, onGenerate }) {
 
         <h2 className="text-xl font-semibold">Gerar Vários Horários</h2>
 
-        {/* ERRO */}
+        {finalError && (
+          <div className="border border-red-400 bg-red-50 text-red-700 rounded-md px-3 py-2 text-sm animate-[fadeIn_.25s_ease-out]">
+            ⚠ {finalError}
+          </div>
+        )}
+
+
+
+
         {erro && (
           <div className="border border-red-400 bg-red-50 text-red-700 rounded-md px-3 py-2 text-sm">
             ⚠ {erro}
@@ -1316,13 +1374,23 @@ function GerarSlotsModal({ open, onClose, onGenerate }) {
 
           <div>
             <p className="text-sm font-medium">Intervalo (min):</p>
-            <input
-              type="number"
-              min="5"
-              value={intervalo}
-              onChange={(e) => setIntervalo(Number(e.target.value))}
+            <IMaskInput
+              mask={Number}
+              scale={0}
+              signed={false}
+              min={30}
+              max={60}
+              thousandsSeparator=""
+              value={String(intervalo)}
+              onAccept={(v) => {
+                const n = Number(v);
+                setIntervalo(isNaN(n) ? 0 : n);
+              }}
+              placeholder="Minutos (mín 30)"
               className="w-full border px-2 py-1 rounded"
             />
+
+
           </div>
         </div>
 
@@ -1357,21 +1425,44 @@ function GerarSlotsModal({ open, onClose, onGenerate }) {
         <div className="flex justify-end gap-3">
           <button
             className="px-4 py-2 bg-gray-300 hover:bg-gray-400 rounded"
-            onClick={() => !creating && onClose()}
+            onClick={() => {
+              if (creating) return;
+
+              // limpa tudo ao fechar
+              setPreview([]);
+              setPreviewError("");
+              setFinalError("");
+              setDataInicio("");
+              setDataFim("");
+              setHoraInicio("08:00");
+              setHoraFim("18:00");
+              setIntervalo(60);
+
+              onClose();
+            }}
             disabled={creating}
           >
             Cancelar
           </button>
 
+
           <button
             className={`px-4 py-2 rounded flex items-center gap-2 text-white 
-    ${preview.length === 0 || creating ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
-            disabled={preview.length === 0 || creating}
+    ${creating ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
+            disabled={creating}
             onClick={async () => {
-              if (preview.length === 0) {
-                setFinalError("Gere a pré-visualização antes de confirmar.");
+
+              if (intervalo < 30) {
+                showFinalError("O intervalo deve ser maior que 30 minutos.");
                 return;
               }
+
+
+              if (preview.length === 0) {
+                showFinalError("Gere a pré-visualização antes de confirmar.");
+                return;
+              }
+
 
               setFinalError("");
               setCreating(true);
@@ -1411,9 +1502,8 @@ function GerarSlotsModal({ open, onClose, onGenerate }) {
             {creating ? "Criando horários..." : "Confirmar criação"}
           </button>
 
-          {finalError && (
-            <p className="text-red-600 text-sm mt-2">{finalError}</p>
-          )}
+
+
 
 
 
