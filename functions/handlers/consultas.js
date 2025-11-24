@@ -169,8 +169,10 @@ exports.criarConsulta = onCall(async (request) => {
     // Atualiza o slot para "ocupado"
     await db.collection("availability_slots").doc(slotId).update({
       status: "ocupado",
+      appointmentId: ref.id,
       atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
     });
+
 
     // Retorna o ID do documento criado
     return {
