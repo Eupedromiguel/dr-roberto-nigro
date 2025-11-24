@@ -4,7 +4,7 @@ import { functions } from "../../services/firebase";
 import { motion, AnimatePresence } from "framer-motion";
 import { IMaskInput } from "react-imask";
 import { useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   getFirestore,
@@ -15,7 +15,6 @@ import {
   where,
   getDocs
 } from "firebase/firestore";
-import { useNavigate } from "react-router-dom";
 
 
 // Função de páginação
@@ -135,13 +134,19 @@ export default function ConsultasScreen() {
   const [unidade, setUnidade] = useState("");
   const toastRef = useRef(null);
   const [toastMsg, setToastMsg] = useState("");
-  const { uid } = useParams();
+  const { uid, consultaId } = useParams();
+  const [searchParams] = useSearchParams();
+  const initialConsultaId = searchParams.get("consulta") || "";
   const { user, role } = useAuth();
   const [modalAvisoConclusao, setModalAvisoConclusao] = useState(false);
   const [consultaParaConcluir, setConsultaParaConcluir] = useState(null);
   const [slotsDisponiveis, setSlotsDisponiveis] = useState([]);
   const [slotSelecionado, setSlotSelecionado] = useState(null);
   const [carregandoSlots, setCarregandoSlots] = useState(false);
+
+
+
+
 
 
 
@@ -206,7 +211,7 @@ export default function ConsultasScreen() {
   const [consultaParaConcluirRetorno, setConsultaParaConcluirRetorno] = useState(null);
   const [paginaAtual, setPaginaAtual] = useState(1);
   const consultasPorPagina = 20;
-  const [buscaNome, setBuscaNome] = useState("");
+  const [buscaNome, setBuscaNome] = useState(initialConsultaId);
   const [buscaData, setBuscaData] = useState("");
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [erroModalRetorno, setErroModalRetorno] = useState("");
@@ -565,7 +570,7 @@ export default function ConsultasScreen() {
   }
 
   // Aplica filtros antes da paginação
-    const consultasFiltradas = consultas.filter((c) => {
+  const consultasFiltradas = consultas.filter((c) => {
     const paciente = pacientesInfo[c.pacienteId];
     const nome = paciente?.nome?.toLowerCase() || "";
     const buscaLower = buscaNome.toLowerCase();
@@ -621,16 +626,16 @@ export default function ConsultasScreen() {
     if (buscaData) return matchData && matchStatus;
     // Senão, busca por nome, id ou convênio
     return (
-  matchNome ||
-  matchId ||
-  matchConvenio ||
-  matchCarteirinha ||
-  matchCategoria ||
-  matchTelefone ||
-  matchCpf ||
-  matchTipoConsulta ||
-  matchTipoAtendimento
-) && matchStatus;
+      matchNome ||
+      matchId ||
+      matchConvenio ||
+      matchCarteirinha ||
+      matchCategoria ||
+      matchTelefone ||
+      matchCpf ||
+      matchTipoConsulta ||
+      matchTipoAtendimento
+    ) && matchStatus;
 
 
 
@@ -787,11 +792,23 @@ export default function ConsultasScreen() {
             const paciente = pacientesInfo[c.pacienteId];
             const tipo = c.tipoConsulta || "presencial";
 
+            // base da rota depende se é médico ou admin
+            const basePath =
+              role === "admin"
+                ? `/medico/consultas/${medicoId}`
+                : "/medico/consultas";
+
+            const linkConsulta = `${basePath}?consulta=${encodeURIComponent(c.id)}`;
+
             return (
               <li
+
                 key={c.id}
-                className="border border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 p-5"
+                className="relative border border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 p-5"
               >
+                
+
+
                 {/* Cabeçalho com nome do paciente */}
                 <div className="flex items-start justify-between mb-3">
                   <div>
@@ -1026,14 +1043,27 @@ export default function ConsultasScreen() {
                   )}
                 </div>
 
-                <div className="mt-3 text-[11px] text-gray-400 font-mono bg-gray-50 px-2 py-1 rounded w-fit">
-                  ID:{" "}
-                  <span className="select-all">
-                    {c.id}
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-gray-400 font-mono bg-gray-50 px-2 py-1 rounded w-fit">
+                  <span>
+                    ID:{" "}
+                    <span className="select-all">
+                      {c.id}
+                    </span>
                   </span>
+
+                  <a
+                    href={linkConsulta}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline font-sans text-[11px]"
+                  >
+                    Abrir esta consulta em nova guia
+                  </a>
                 </div>
 
+
               </li>
+
 
             );
           })}
@@ -1426,19 +1456,18 @@ export default function ConsultasScreen() {
 
               <div className="flex justify-center gap-3">
                 <button
-  onClick={() => handleConcluir(consultaParaConcluir, true)}
-  disabled={loadingConcluirId === consultaParaConcluir}
-  className={`${
-    loadingConcluirId === consultaParaConcluir
-      ? "bg-yellow-400 cursor-not-allowed"
-      : "bg-yellow-500 hover:bg-yellow-600"
-  } text-white px-4 py-2 rounded-md text-sm flex items-center gap-2`}
->
-  {loadingConcluirId === consultaParaConcluir && (
-    <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span>
-  )}
-  {loadingConcluirId === consultaParaConcluir ? "Concluindo..." : "Confirmar"}
-</button>
+                  onClick={() => handleConcluir(consultaParaConcluir, true)}
+                  disabled={loadingConcluirId === consultaParaConcluir}
+                  className={`${loadingConcluirId === consultaParaConcluir
+                    ? "bg-yellow-400 cursor-not-allowed"
+                    : "bg-yellow-500 hover:bg-yellow-600"
+                    } text-white px-4 py-2 rounded-md text-sm flex items-center gap-2`}
+                >
+                  {loadingConcluirId === consultaParaConcluir && (
+                    <span className="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span>
+                  )}
+                  {loadingConcluirId === consultaParaConcluir ? "Concluindo..." : "Confirmar"}
+                </button>
 
 
                 <button
