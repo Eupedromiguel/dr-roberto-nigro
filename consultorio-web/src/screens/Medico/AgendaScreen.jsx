@@ -132,6 +132,93 @@ const Toaster = forwardRef(function Toaster(_props, ref) {
 });
 
 
+
+function Pagination({ current, total, onChange }) {
+  if (total <= 1) return null;
+
+  const getPages = () => {
+    const pages = [];
+    const maxAround = 1;
+    const push = (v) => pages.push(v);
+
+    const start = Math.max(2, current - maxAround);
+    const end = Math.min(total - 1, current + maxAround);
+
+    push(1);
+    if (start > 2) push("...");
+    for (let p = start; p <= end; p++) push(p);
+    if (end < total - 1) push("...");
+    if (total > 1) push(total);
+
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    return pages;
+  };
+
+  const pages = getPages();
+
+  const baseBtn =
+    "px-3 py-1 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-400";
+  const activeBtn = "bg-yellow-400 text-white";
+  const idleBtn = "bg-gray-200 text-gray-800 hover:bg-gray-300";
+
+  const go = (n) => {
+    if (n < 1 || n > total || n === current) return;
+    onChange(n);
+  };
+
+  return (
+    <nav className="flex items-center justify-center gap-2 flex-wrap mt-4">
+      <button
+        onClick={() => go(1)}
+        disabled={current === 1}
+        className={`${baseBtn} ${current === 1 ? "opacity-40 cursor-not-allowed" : idleBtn}`}
+      >
+        «
+      </button>
+      <button
+        onClick={() => go(current - 1)}
+        disabled={current === 1}
+        className={`${baseBtn} ${current === 1 ? "opacity-40 cursor-not-allowed" : idleBtn}`}
+      >
+        ‹
+      </button>
+
+      {pages.map((p, idx) =>
+        p === "..." ? (
+          <span key={idx} className="px-2 text-gray-500">…</span>
+        ) : (
+          <button
+            key={p}
+            onClick={() => go(p)}
+            className={`${baseBtn} ${p === current ? activeBtn : idleBtn}`}
+          >
+            {p}
+          </button>
+        )
+      )}
+
+      <button
+        onClick={() => go(current + 1)}
+        disabled={current === total}
+        className={`${baseBtn} ${current === total ? "opacity-40 cursor-not-allowed" : idleBtn}`}
+      >
+        ›
+      </button>
+      <button
+        onClick={() => go(total)}
+        disabled={current === total}
+        className={`${baseBtn} ${current === total ? "opacity-40 cursor-not-allowed" : idleBtn}`}
+      >
+        »
+      </button>
+    </nav>
+  );
+}
+
+
+
 // ===============================================
 // Componente principal
 // ===============================================
@@ -164,6 +251,9 @@ export default function AgendaScreen() {
   const [modalAppointmentOpen, setModalAppointmentOpen] = useState(false);
   const [appointmentSelecionado, setAppointmentSelecionado] = useState(null);
   const [diaComInputAberto, setDiaComInputAberto] = useState(null);
+  const [paginaAtual, setPaginaAtual] = useState(1);
+
+
 
 
 
@@ -589,6 +679,13 @@ export default function AgendaScreen() {
     (dia) => dia >= todayStr() && !diasOcultos.includes(dia)
   );
 
+  const diasPorPagina = 15;
+  const totalPaginas = Math.ceil(diasFuturos.length / diasPorPagina);
+  const indiceInicial = (paginaAtual - 1) * diasPorPagina;
+  const indiceFinal = indiceInicial + diasPorPagina;
+  const diasPaginados = diasFuturos.slice(indiceInicial, indiceFinal);
+
+
 
 
   return (
@@ -728,204 +825,169 @@ export default function AgendaScreen() {
 
 
           {/* Listagem */}
+
+          {/* Listagem */}
           {diasFuturos.length === 0 ? (
             <p className="text-gray-500 text-sm">Nenhum dia disponível.</p>
           ) : (
-            diasFuturos.map((dia) => (
-              <div key={dia} className="border rounded-md p-4 bg-gray-50">
+            <>
+              {/* PAGINAÇÃO — TOPO (uma vez só) */}
+              {totalPaginas > 1 && (
+                <Pagination
+                  current={paginaAtual}
+                  total={totalPaginas}
+                  onChange={(n) => {
+                    setPaginaAtual(n);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                />
+              )}
 
+              {/* DIAS PAGINADOS */}
+              {diasPaginados.map((dia) => {
+                const slotsDoDia = slotsPorData[dia] || [];
+                const podeOcultar = slotsDoDia.every(
+                  (s) => s.status === "livre" || s.status === "cancelado"
+                );
 
+                return (
+                  <div key={dia} className="border rounded-md p-4 bg-gray-50">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 gap-2">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-gray-700">
+                          📅 {formatarDataCompleta(dia)}
+                        </h3>
 
-
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 gap-2">
-
-                  {/* Título + botão X */}
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-gray-700">
-                      📅 {formatarDataCompleta(dia)}
-                    </h3>
-
-                    {(() => {
-                      const slotsDoDia = slotsPorData[dia] || [];
-                      const podeOcultar = slotsDoDia.every(
-                        (s) => s.status === "livre" || s.status === "cancelado"
-                      );
-
-
-
-                      return (
-                        podeOcultar && (
+                        {podeOcultar && (
                           <button
                             onClick={() => {
                               setDiaParaRemoverDefinitivo(dia);
                               setConfirmDeleteDefinitivoOpen(true);
                             }}
-                            className="
-    text-red-400 
-    hover:text-red-500 
-    text-xs
-    font-semibold 
-    px-2
-    py-1
-    rounded 
-    transition 
-    hover:bg-red-500/10
-  "
+                            className="text-red-400 hover:text-red-500 text-xs font-semibold px-2 py-1 rounded transition hover:bg-red-500/10"
                             title="Apagar definitivamente este dia e todos os slots"
                           >
                             Deletar
                           </button>
-
-
-                        )
-                      );
-                    })()}
-                  </div>
-
-                  {/* Botões Adicionar horário + Cancelar dia */}
-                  <div className="flex items-center gap-3">
-                    <AdicionarHorarioButton
-                      dia={dia}
-                      onAdd={adicionarHorario}
-                      notify={notify}
-                      diaComInputAberto={diaComInputAberto}
-                      setDiaComInputAberto={setDiaComInputAberto}
-                    />
-
-
-                    {diaComInputAberto !== dia && (
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          const slotsDoDia = slotsPorData[dia] || [];
-                          const existeOcupado = slotsDoDia.some(s => s.status === "ocupado");
-
-                          if (existeOcupado) {
-                            setModalBloqueioDia(true);
-                            return;
-                          }
-
-                          setDiaParaExcluir(dia);
-                          setConfirmDeleteDayOpen(true);
-                        }}
-                        className="!text-xs !px-3 !py-2 !border !border-gray-950 !bg-white !text-gray-950 hover:!bg-red-100 !max-w-[150px] truncate"
-                      >
-                        Cancelar todos
-                      </Button>
-                    )}
-
-
-
-
-                  </div>
-
-                </div>
-
-
-
-                <ul className="divide-y">
-                  {slotsPorData[dia]?.length ? (
-                    slotsPorData[dia].map((slot) => (
-                      <li key={slot.id} className="py-2 flex justify-between items-center">
-                        <span
-                          onClick={() => {
-                            if (slot.status !== "ocupado") return;
-
-                            const consultaId = slot.appointmentId;
-
-                            if (!consultaId) {
-                              notify("Este horário ocupado não possui appointmentId.", "error");
-                              return;
-                            }
-
-                            // base da rota depende se é médico ou admin
-                            const basePath =
-                              role === "admin"
-                                ? `/medico/consultas/${medicoId}`
-                                : "/medico/consultas";
-
-                            const url = `${basePath}?consulta=${encodeURIComponent(consultaId)}`;
-                            window.open(url, "_blank", "noopener,noreferrer");
-                          }}
-                          className={`${slot.status === "ocupado" ? "cursor-pointer hover:underline" : ""}`}
-                        >
-                          {slot.hora} —{" "}
-                          <b className={
-                            slot.status === "ocupado"
-                              ? "text-blue-600"
-                              : slot.status === "livre"
-                                ? "text-green-600"
-                                : "text-red-600"
-                          }>
-                            {slot.status}
-                          </b>
-                        </span>
-
-
-
-
-                        {slot.status === "cancelado" ? (
-                          <button
-                            onClick={() => reabrirSlot(slot.id)}
-                            disabled={reabrindoId === slot.id}
-                            className={`text-sm flex items-center gap-1 ${reabrindoId === slot.id
-                              ? "text-gray-400 cursor-not-allowed"
-                              : "text-gray-950 hover:underline"
-                              }`}
-                          >
-                            {reabrindoId === slot.id && (
-                              <svg
-                                className="animate-spin h-4 w-4 text-emerald-600"
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                              >
-                                <circle
-                                  className="opacity-25"
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                ></circle>
-                                <path
-                                  className="opacity-75"
-                                  fill="currentColor"
-                                  d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 000 16v-4l3 3-3 3v-4a8 8 0 01-8-8z"
-                                ></path>
-                              </svg>
-                            )}
-                            {reabrindoId === slot.id ? "Reabrindo..." : "Reabrir"}
-                          </button>
-                        ) : slot.status === "ocupado" ? (
-
-
-                          null
-
-                        ) : (
-
-
-                          <button
-                            onClick={() => {
-                              setConfirmOpen(true);
-                              setConfirmTargetId(slot.id);
-                            }}
-                            className="text-sm text-red-500 hover:underline"
-                          >
-                            Cancelar
-                          </button>
-
-
                         )}
-                      </li>
-                    ))
-                  ) : (
-                    <li className="text-sm text-gray-500 italic">Nenhum horário ainda.</li>
-                  )}
-                </ul>
-              </div>
-            ))
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <AdicionarHorarioButton
+                          dia={dia}
+                          onAdd={adicionarHorario}
+                          notify={notify}
+                          diaComInputAberto={diaComInputAberto}
+                          setDiaComInputAberto={setDiaComInputAberto}
+                        />
+
+                        {diaComInputAberto !== dia && (
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              const existeOcupado = slotsDoDia.some(
+                                (s) => s.status === "ocupado"
+                              );
+                              if (existeOcupado) {
+                                setModalBloqueioDia(true);
+                                return;
+                              }
+                              setDiaParaExcluir(dia);
+                              setConfirmDeleteDayOpen(true);
+                            }}
+                            className="!text-xs !px-3 !py-2 !border !border-gray-950 !bg-white !text-gray-950 hover:!bg-red-100 !max-w-[150px] truncate"
+                          >
+                            Cancelar todos
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    <ul className="divide-y">
+                      {slotsDoDia.length ? (
+                        slotsDoDia.map((slot) => (
+                          <li key={slot.id} className="py-2 flex justify-between items-center">
+                            <span
+                              onClick={() => {
+                                if (slot.status !== "ocupado") return;
+                                const consultaId = slot.appointmentId;
+                                if (!consultaId) {
+                                  notify("Este horário ocupado não possui appointmentId.", "error");
+                                  return;
+                                }
+                                const basePath =
+                                  role === "admin"
+                                    ? `/medico/consultas/${medicoId}`
+                                    : "/medico/consultas";
+                                const url = `${basePath}?consulta=${encodeURIComponent(consultaId)}`;
+                                window.open(url, "_blank", "noopener,noreferrer");
+                              }}
+                              className={slot.status === "ocupado" ? "cursor-pointer hover:underline" : ""}
+                            >
+                              {slot.hora} —{" "}
+                              <b
+                                className={
+                                  slot.status === "ocupado"
+                                    ? "text-blue-600"
+                                    : slot.status === "livre"
+                                      ? "text-green-600"
+                                      : "text-red-600"
+                                }
+                              >
+                                {slot.status}
+                              </b>
+                            </span>
+
+                            {slot.status === "cancelado" ? (
+                              <button
+                                onClick={() => reabrirSlot(slot.id)}
+                                disabled={reabrindoId === slot.id}
+                                className={`text-sm flex items-center gap-1 ${reabrindoId === slot.id
+                                    ? "text-gray-400 cursor-not-allowed"
+                                    : "text-gray-950 hover:underline"
+                                  }`}
+                              >
+                                {reabrindoId === slot.id ? "Reabrindo..." : "Reabrir"}
+                              </button>
+                            ) : slot.status === "ocupado" ? null : (
+                              <button
+                                onClick={() => {
+                                  setConfirmOpen(true);
+                                  setConfirmTargetId(slot.id);
+                                }}
+                                className="text-sm text-red-500 hover:underline"
+                              >
+                                Cancelar
+                              </button>
+                            )}
+                          </li>
+                        ))
+                      ) : (
+                        <li className="text-sm text-gray-500 italic">Nenhum horário ainda.</li>
+                      )}
+                    </ul>
+                  </div>
+                );
+              })}
+
+              {/* PAGINAÇÃO — RODAPÉ (uma vez só) */}
+              {totalPaginas > 1 && (
+                <Pagination
+                  current={paginaAtual}
+                  total={totalPaginas}
+                  onChange={(n) => {
+                    setPaginaAtual(n);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                />
+              )}
+            </>
           )}
+
+
+
+
+
         </div>
       )}
 
