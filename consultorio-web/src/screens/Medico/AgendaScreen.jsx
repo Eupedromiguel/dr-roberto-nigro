@@ -256,6 +256,17 @@ export default function AgendaScreen() {
 
 
 
+  // Função que limita o número da página ao intervalo válido
+  function goToPage(n) {
+    if (totalPaginas === 0) return; // evita erro quando ainda não há dias
+    const paginaValida = Math.max(1, Math.min(n, totalPaginas));
+    setPaginaAtual(paginaValida);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+
+
+
 
 
 
@@ -358,6 +369,15 @@ export default function AgendaScreen() {
 
     carregarNomeMedico();
   }, [role, uid, db]);
+
+
+
+
+  // Quando mudar de médico/visão, reseta a paginação
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [medicoId]);
+
 
 
 
@@ -681,6 +701,12 @@ export default function AgendaScreen() {
 
   const diasPorPagina = 15;
   const totalPaginas = Math.ceil(diasFuturos.length / diasPorPagina);
+  useEffect(() => {
+    if (paginaAtual > totalPaginas) {
+      setPaginaAtual(totalPaginas || 1);
+    }
+  }, [totalPaginas]);
+
   const indiceInicial = (paginaAtual - 1) * diasPorPagina;
   const indiceFinal = indiceInicial + diasPorPagina;
   const diasPaginados = diasFuturos.slice(indiceInicial, indiceFinal);
@@ -836,11 +862,9 @@ export default function AgendaScreen() {
                 <Pagination
                   current={paginaAtual}
                   total={totalPaginas}
-                  onChange={(n) => {
-                    setPaginaAtual(n);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
+                  onChange={goToPage}
                 />
+
               )}
 
               {/* DIAS PAGINADOS */}
@@ -943,8 +967,8 @@ export default function AgendaScreen() {
                                 onClick={() => reabrirSlot(slot.id)}
                                 disabled={reabrindoId === slot.id}
                                 className={`text-sm flex items-center gap-1 ${reabrindoId === slot.id
-                                    ? "text-gray-400 cursor-not-allowed"
-                                    : "text-gray-950 hover:underline"
+                                  ? "text-gray-400 cursor-not-allowed"
+                                  : "text-gray-950 hover:underline"
                                   }`}
                               >
                                 {reabrindoId === slot.id ? "Reabrindo..." : "Reabrir"}
@@ -975,11 +999,9 @@ export default function AgendaScreen() {
                 <Pagination
                   current={paginaAtual}
                   total={totalPaginas}
-                  onChange={(n) => {
-                    setPaginaAtual(n);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
+                  onChange={goToPage}
                 />
+
               )}
             </>
           )}

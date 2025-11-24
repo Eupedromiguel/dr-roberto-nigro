@@ -710,7 +710,7 @@ export default function ConsultasScreen() {
         {/* Campo de data com IMask */}
         <IMaskInput
           mask="00/00/0000"
-          placeholder="Filtrar por data (DD/MM/AAAA)"
+          placeholder="Filtrar por data DD/MM/AAAA"
           value={buscaData}
           onAccept={(v) => {
             setBuscaData(v);
