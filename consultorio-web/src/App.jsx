@@ -312,7 +312,7 @@ export default function App() {
             />
 
             {/* ========================================= */}
-            {/* ❌ PÁGINA NÃO ENCONTRADA */}
+            {/* PÁGINA NÃO ENCONTRADA */}
             {/* ========================================= */}
             <Route
               path="*"
@@ -334,7 +334,8 @@ export default function App() {
           {/* ========================================= */}
           {/* BOTÃO FLUTUANTE DO WHATSAPP */}
           {/* ========================================= */}
-          <div className="fixed bottom-5 right-5 z-50 group">
+          <div className="hidden md:block fixed bottom-5 right-5 z-50 group">
+
             <span className="absolute inset-0 rounded-full bg-green-400 opacity-50 scale-100" />
             <a
               href="https://wa.me/5511965721206"

@@ -9,7 +9,7 @@ import Especialidades from "./Especialidades"
 import Convenios from "./Convenios"
 
 export default function HomeScreen() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
 
   const SectionDivider = () => (
     <div className="flex items-center justify-center mb-2">
@@ -161,49 +161,51 @@ export default function HomeScreen() {
         </section>
 
         {/* CTA LOGIN / PERFIL */}
-        <section className="flex flex-col items-center justify-center py-4 bg-gray-800 px-6">
-          {!user ? (
-            <>
-              <h2 className="text-center text-4xl font-momo text-yellow-400 mb-4">
-                Nosso compromisso é o seu bem-estar
-              </h2>
-              <p className="text-center text-white text-lg max-w-2xl mb-6">
-                Atendimento humanizado, equipe experiente e foco total na sua saúde.
-              </p>
+        {/* CTA LOGIN / PERFIL */}
+{role !== "admin" && (
+  <section className="flex flex-col items-center justify-center py-4 bg-gray-800 px-6">
+    {!user ? (
+      <>
+        <h2 className="text-center text-4xl font-momo text-yellow-400 mb-4">
+          Nosso compromisso é o seu bem-estar
+        </h2>
+        <p className="text-center text-white text-lg max-w-2xl mb-6">
+          Atendimento humanizado, equipe experiente e foco total na sua saúde.
+        </p>
 
-              <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+        <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+          <Link
+            to="/login"
+            className="bg-gray-950 text-white hover:bg-yellow-400 font-semibold px-6 py-3 rounded-lg shadow transition"
+          >
+            Entrar
+          </Link>
 
-                <Link
-                  to="/login"
-                  className="bg-gray-950 text-white hover:bg-yellow-400 font-semibold px-6 py-3 rounded-lg shadow transition"
-                >
-                  Entrar
-                </Link>
+          <Link
+            to="/register"
+            className="bg-gray-950 text-white hover:bg-yellow-500 font-semibold px-6 py-3 rounded-lg shadow transition"
+          >
+            Cadastrar-se
+          </Link>
+        </div>
+      </>
+    ) : (
+      <>
+        <h2 className="text-3xl font-light text-yellow-400 mb-1">
+          Olá, {user.displayName || user.email?.split("@")[0]}
+        </h2>
+        <p className="text-white mb-6">Seja bem-vindo de volta!</p>
+        <Link
+          to="/paciente/agendar"
+          className="bg-gray-950 hover:bg-yellow-400 text-white font-semibold px-6 py-3 rounded-lg shadow transition"
+        >
+          Agendar consulta
+        </Link>
+      </>
+    )}
+  </section>
+)}
 
-                
-                <Link
-                  to="/register"
-                  className="bg-gray-950 text-white hover:bg-yellow-500 font-semibold px-6 py-3 rounded-lg shadow transition"
-                >
-                  Cadastrar-se
-                </Link>
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 className="text-3xl font-light text-yellow-400 mb-1">
-                Olá, {user.displayName || user.email?.split("@")[0]}
-              </h2>
-              <p className="text-white mb-6">Seja bem-vindo de volta!</p>
-              <Link
-                to="/perfil"
-                className="bg-gray-950 hover:bg-yellow-400 text-white font-semibold px-6 py-3 rounded-lg shadow transition"
-              >
-                Ir para meu perfil
-              </Link>
-            </>
-          )}
-        </section>
 
 
         {/* SLIDER FINAL (modern, slim) */}
