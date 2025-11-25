@@ -254,6 +254,7 @@ export default function AgendaScreen() {
   const [diaComInputAberto, setDiaComInputAberto] = useState(null);
   const [filtroData, setFiltroData] = useState("");
   const [paginaAtual, setPaginaAtual] = useState(1);
+  
 
 
 
@@ -787,10 +788,49 @@ export default function AgendaScreen() {
 
 
       {loading ? (
-        <div className="max-w-4xl mx-auto bg-white shadow rounded-md p-6 animate-pulse space-y-6">
-          <div className="h-6 bg-slate-300 rounded w-1/3"></div>
+  <div className="max-w-4xl mx-auto bg-gray-900 shadow rounded-md p-7 space-y-6">
+
+    {/* Título */}
+    <div className="h-6 w-40 bg-gray-700 rounded animate-pulse"></div>
+
+    {/* Botões */}
+    <div className="flex flex-col md:flex-row gap-3">
+      <div className="h-10 w-full md:w-40 bg-gray-700 rounded animate-pulse"></div>
+      <div className="h-10 w-full md:w-40 bg-gray-700 rounded animate-pulse"></div>
+    </div>
+
+    {/* Barra de busca */}
+    <div className="h-11 w-full bg-gray-800 rounded-lg animate-pulse"></div>
+
+    {/* Skeleton de vários dias */}
+    <div className="space-y-6">
+      {[1,2,3,4].map((i) => (
+        <div
+          key={i}
+          className="bg-gray-800 border border-gray-700 rounded-md p-5 space-y-4 animate-pulse"
+        >
+          {/* Cabeçalho do dia */}
+          <div className="flex items-center justify-between">
+            <div className="h-5 w-52 bg-gray-600 rounded"></div>
+            <div className="h-8 w-32 bg-gray-700 rounded"></div>
+          </div>
+
+          {/* Lista de horários */}
+          <div className="space-y-2">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="flex justify-between items-center pt-2">
+                <div className="h-4 w-32 bg-gray-600 rounded"></div>
+                <div className="h-6 w-20 bg-gray-700 rounded"></div>
+              </div>
+            ))}
+          </div>
         </div>
-      ) : (
+      ))}
+    </div>
+
+  </div>
+) : (
+
 
 
         <div className="max-w-4xl mx-auto bg-gray-900 shadow rounded-md p-7 space-y-2">

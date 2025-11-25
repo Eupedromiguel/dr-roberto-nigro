@@ -3,6 +3,7 @@ import { httpsCallable } from "firebase/functions";
 import { functions } from "../../services/firebase";
 import { getFirestore, doc, getDoc } from "firebase/firestore";
 import Button from "../../components/Button";
+import { Stethoscope } from "lucide-react";
 
 // Toaster reutilizável
 
@@ -136,7 +137,7 @@ export default function AgendamentosScreen() {
       2,
       "0"
     )}/${y}`;
-    return `${diaSemana}, ${dataFormatada} — ${hora}`;
+    return `${diaSemana}, ${dataFormatada} - ${hora}`;
   }
 
   async function carregarConsultas() {
@@ -274,210 +275,209 @@ export default function AgendamentosScreen() {
       )}
 
       {/* Consultas Futuras */}
-{futuras.length > 0 && (
-  <section>
-    <h3 className="text-lg font-semibold text-white mb-2">
-      Consultas e retornos
-    </h3>
-    <ul className="space-y-3">
-      {futuras.map((c) => {
-        const medico = medicosInfo[c.medicoId];
-        return (
-          <li
-            key={c.id}
-            className="border p-4 rounded-md bg-white shadow-sm hover:bg-yellow-50 transition"
-          >
-            <p className="font-semibold text-gray-900">
-              🩺 {medico?.nome || "Carregando..."}
-            </p>
-            <p className="text-sm text-gray-600 mb-1">
-              {medico?.especialidade}
-            </p>
-            <p className="text-sm text-gray-700">
-              📅 {formatarDataHora(c.horario)}
-            </p>
-            <br />
-
-            {/* Unidade */}
-            {c.unidade && (
-              <p className="text-sm text-gray-700">
-                <b>Unidade:</b> {c.unidade}
-              </p>
-            )}
-
-            {/* Tipo */}
-            <p className="text-sm text-gray-700 mt-1">
-              <b>Tipo:</b>{" "}
-              <span
-                className={`${
-                  c.tipoConsulta === "teleconsulta"
-                    ? "text-purple-700"
-                    : "text-blue-700"
-                }`}
-              >
-                {c.tipoConsulta === "teleconsulta"
-                  ? "Teleconsulta"
-                  : "Presencial"}
-              </span>
-            </p>
-
-            {/* Tipo de atendimento */}
-            {c.tipoAtendimento && (
-              <p className="text-sm text-gray-700 mt-1">
-                <b>Tipo de atendimento:</b>{" "}
-                <span
-                  className={`${
-                    c.tipoAtendimento === "particular"
-                      ? "text-green-700"
-                      : "text-indigo-700"
-                  }`}
+      {futuras.length > 0 && (
+        <section>
+          <h3 className="text-lg font-semibold text-white mb-2">
+            Consultas e retornos
+          </h3>
+          <ul className="space-y-3">
+            {futuras.map((c) => {
+              const medico = medicosInfo[c.medicoId];
+              return (
+                <li
+                  key={c.id}
+                  className="border p-4 rounded-md bg-white shadow-sm hover:bg-yellow-50 transition"
                 >
-                  {c.tipoAtendimento === "particular"
-                    ? "Particular"
-                    : "Convênio"}
-                </span>
-              </p>
-            )}
-
-{/* Convênio */}
-{c.tipoAtendimento === "convenio" && (
-  <>
-    <p className="text-sm text-gray-700 ml-0">
-      <b>Convênio:</b> {c.convenio}
-    </p>
-
-    {c.categoria && (
-      <p className="text-sm text-gray-700 ml-0">
-        <b>Categoria:</b> {c.categoria}
-      </p>
-    )}
-
-    {c.carteirinha && (
-      <p className="text-sm text-gray-700 ml-0">
-        <b>Nº da carteirinha:</b> {c.carteirinha}
-      </p>
-    )}
-  </>
-)}
-
-
-            {/* Valores */}
-            {c.tipoAtendimento === "particular" && (
-              <>
-                {c.tipoConsulta === "teleconsulta" && medico?.valorteleConsulta && (
-                  <p className="text-sm text-gray-700 mt-1">
-                    <b>Valor da teleconsulta:</b>{" "}
-                    <span className="font-normal text-gray-950">
-                      R$ {parseFloat(medico.valorteleConsulta).toFixed(2)}
-                    </span>
+                  <p className="font-semibold text-gray-900 flex items-center gap-2">
+                    <Stethoscope className="text-gray-700" size={20} />
+                    {medico?.nome || "Carregando..."}
                   </p>
-                )}
 
-                {c.tipoConsulta === "presencial" && medico?.valorConsulta && (
-                  <p className="text-sm text-gray-700 mt-1">
-                    <b>Valor da consulta presencial:</b>{" "}
-                    <span className="font-normal text-gray-950">
-                      R$ {parseFloat(medico.valorConsulta).toFixed(2)}
-                    </span>
+                  <p className="text-sm text-gray-600 mb-1">
+                    {medico?.especialidade}
                   </p>
-                )}
-              </>
-            )}
+                  <p className="text-sm text-gray-700">
+                    {formatarDataHora(c.horario)}
+                  </p>
+                  <br />
 
-            {/* Status */}
-            <p className="text-gray-700 mt-1 text-sm">
-              <b>Status:</b>{" "}
-              <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">
-                {c.status}
-              </span>
-            </p>
-
-            {/* Detalhes do Retorno */}
-            {c.status === "retorno" && c.retornoAgendado && (
-              <div className="mt-3 p-3 bg-yellow-50 border border-gray-200 rounded-lg text-sm text-blue-900">
-                <p className="font-medium mb-1">📋 <b>Detalhes do Retorno</b></p>
-
-                <p>
-                  <b>Data e horário:</b>{" "}
-                  {formatarDataHora(
-                    `${c.retornoAgendado.novaData} ${c.retornoAgendado.novoHorario}`
+                  {/* Unidade */}
+                  {c.unidade && (
+                    <p className="text-sm text-gray-700">
+                      <b>Unidade:</b> {c.unidade}
+                    </p>
                   )}
-                </p>
 
-                <p>
-                  <b>Tipo de retorno:</b>{" "}
-                  {c.retornoAgendado.tipoRetorno === "teleconsulta"
-                    ? "Teleconsulta"
-                    : "Presencial"}
-                </p>
-
-                {c.retornoAgendado.unidade && (
-                  <p>
-                    <b>Unidade do retorno:</b> {c.retornoAgendado.unidade}
+                  {/* Tipo */}
+                  <p className="text-sm text-gray-700 mt-1">
+                    <b>Tipo:</b>{" "}
+                    <span
+                      className={`${c.tipoConsulta === "teleconsulta"
+                          ? "text-purple-700"
+                          : "text-blue-700"
+                        }`}
+                    >
+                      {c.tipoConsulta === "teleconsulta"
+                        ? "Teleconsulta"
+                        : "Presencial"}
+                    </span>
                   </p>
-                )}
 
-                {c.retornoAgendado.observacoes && (
-                  <p>
-                    <b>Observações do retorno:</b> {c.retornoAgendado.observacoes}
+                  {/* Tipo de atendimento */}
+                  {c.tipoAtendimento && (
+                    <p className="text-sm text-gray-700 mt-1">
+                      <b>Tipo de atendimento:</b>{" "}
+                      <span
+                        className={`${c.tipoAtendimento === "particular"
+                            ? "text-gray-700"
+                            : "text-gray-700"
+                          }`}
+                      >
+                        {c.tipoAtendimento === "particular"
+                          ? "Particular"
+                          : "Convênio"}
+                      </span>
+                    </p>
+                  )}
+
+                  {/* Convênio */}
+                  {c.tipoAtendimento === "convenio" && (
+                    <>
+                      <p className="text-sm text-gray-700 ml-0">
+                        <b>Convênio:</b> {c.convenio}
+                      </p>
+
+                      {c.categoria && (
+                        <p className="text-sm text-gray-700 ml-0">
+                          <b>Categoria:</b> {c.categoria}
+                        </p>
+                      )}
+
+                      {c.carteirinha && (
+                        <p className="text-sm text-gray-700 ml-0">
+                          <b>Nº da carteirinha:</b> {c.carteirinha}
+                        </p>
+                      )}
+                    </>
+                  )}
+
+
+                  {/* Valores */}
+                  {c.tipoAtendimento === "particular" && (
+                    <>
+                      {c.tipoConsulta === "teleconsulta" && medico?.valorteleConsulta && (
+                        <p className="text-sm text-gray-700 mt-1">
+                          <b>Valor da teleconsulta:</b>{" "}
+                          <span className="font-normal text-gray-950">
+                            R$ {parseFloat(medico.valorteleConsulta).toFixed(2)}
+                          </span>
+                        </p>
+                      )}
+
+                      {c.tipoConsulta === "presencial" && medico?.valorConsulta && (
+                        <p className="text-sm text-gray-700 mt-1">
+                          <b>Valor da consulta presencial:</b>{" "}
+                          <span className="font-normal text-gray-950">
+                            R$ {parseFloat(medico.valorConsulta).toFixed(2)}
+                          </span>
+                        </p>
+                      )}
+                    </>
+                  )}
+
+                  {/* Status */}
+                  <p className="text-gray-700 mt-1 text-sm">
+                    <b>Status:</b>{" "}
+                    <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs font-medium">
+                      {c.status}
+                    </span>
                   </p>
-                )}
-              </div>
-            )}
 
-            {/* Aviso para retornos */}
-            {c.status === "retorno" && (
-              <div className="mt-3 text-sm bg-orange-50 border border-gray-200 rounded-md p-3 text-gray-700">
-                Se o paciente não puder comparecer ao retorno, favor entrar em contato no{" "}
-                <a
-                  href="https://wa.me/5511965721206"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline font-medium"
-                >
-                  WhatsApp da clínica
-                </a>{" "}
-                para solicitar reagendamento.
-              </div>
-            )}
+                  {/* Detalhes do Retorno */}
+                  {c.status === "retorno" && c.retornoAgendado && (
+                    <div className="mt-3 p-3 bg-yellow-50 border border-gray-200 rounded-lg text-sm text-blue-900">
+                      <p className="font-medium mb-1">📋 <b>Detalhes do Retorno</b></p>
 
-            {/* Botão de Cancelar (desabilitado para retornos) */}
-            <div className="mt-3">
-              {c.status === "retorno" ? (
-                <button
-                  disabled
-                  className="bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm cursor-not-allowed"
-                  title="O cancelamento de retornos deve ser solicitado à clínica."
-                >
-                  Cancelamento indisponível
-                </button>
-              ) : (
-                <Button
-                  onClick={() => solicitarCancelar(c.id)}
-                  disabled={loadingCancelar === c.id}
-                  className={`bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm ${
-                    loadingCancelar === c.id
-                      ? "opacity-70 cursor-not-allowed"
-                      : ""
-                  }`}
-                >
-                  {loadingCancelar === c.id ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Cancelando...</span>
+                      <p>
+                        <b>Data e horário:</b>{" "}
+                        {formatarDataHora(
+                          `${c.retornoAgendado.novaData} ${c.retornoAgendado.novoHorario}`
+                        )}
+                      </p>
+
+                      <p>
+                        <b>Tipo de retorno:</b>{" "}
+                        {c.retornoAgendado.tipoRetorno === "teleconsulta"
+                          ? "Teleconsulta"
+                          : "Presencial"}
+                      </p>
+
+                      {c.retornoAgendado.unidade && (
+                        <p>
+                          <b>Unidade do retorno:</b> {c.retornoAgendado.unidade}
+                        </p>
+                      )}
+
+                      {c.retornoAgendado.observacoes && (
+                        <p>
+                          <b>Observações do retorno:</b> {c.retornoAgendado.observacoes}
+                        </p>
+                      )}
                     </div>
-                  ) : (
-                    "Cancelar"
                   )}
-                </Button>
-              )}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  </section>
-)}
+
+                  {/* Aviso para retornos */}
+                  {c.status === "retorno" && (
+                    <div className="mt-3 text-sm bg-orange-50 border border-gray-200 rounded-md p-3 text-gray-700">
+                      Se o paciente não puder comparecer ao retorno, favor entrar em contato no{" "}
+                      <a
+                        href="https://wa.me/5511965721206"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline font-medium"
+                      >
+                        WhatsApp da clínica
+                      </a>{" "}
+                      para solicitar reagendamento.
+                    </div>
+                  )}
+
+                  {/* Botão de Cancelar (desabilitado para retornos) */}
+                  <div className="mt-3">
+                    {c.status === "retorno" ? (
+                      <button
+                        disabled
+                        className="bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm cursor-not-allowed"
+                        title="O cancelamento de retornos deve ser solicitado à clínica."
+                      >
+                        Cancelamento indisponível
+                      </button>
+                    ) : (
+                      <Button
+                        onClick={() => solicitarCancelar(c.id)}
+                        disabled={loadingCancelar === c.id}
+                        className={`bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm ${loadingCancelar === c.id
+                            ? "opacity-70 cursor-not-allowed"
+                            : ""
+                          }`}
+                      >
+                        {loadingCancelar === c.id ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <span>Cancelando...</span>
+                          </div>
+                        ) : (
+                          "Cancelar"
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
 
       {/* Consultas Passadas */}
@@ -517,8 +517,8 @@ export default function AgendamentosScreen() {
                     <b>Tipo:</b>{" "}
                     <span
                       className={`${c.tipoConsulta === "teleconsulta"
-                          ? "text-purple-700"
-                          : "text-blue-700"
+                        ? "text-purple-700"
+                        : "text-blue-700"
                         }`}
                     >
                       {c.tipoConsulta === "teleconsulta"
@@ -533,8 +533,8 @@ export default function AgendamentosScreen() {
                       <b>Tipo de atendimento:</b>{" "}
                       <span
                         className={`${c.tipoAtendimento === "particular"
-                            ? "text-green-700"
-                            : "text-indigo-700"
+                          ? "text-green-700"
+                          : "text-indigo-700"
                           }`}
                       >
                         {c.tipoAtendimento === "particular"
@@ -544,26 +544,26 @@ export default function AgendamentosScreen() {
                     </p>
                   )}
 
-{/* Convênio */}
-{c.tipoAtendimento === "convenio" && (
-  <>
-    <p className="text-sm text-gray-700 ml-0">
-      <b>Convênio:</b> {c.convenio}
-    </p>
+                  {/* Convênio */}
+                  {c.tipoAtendimento === "convenio" && (
+                    <>
+                      <p className="text-sm text-gray-700 ml-0">
+                        <b>Convênio:</b> {c.convenio}
+                      </p>
 
-    {c.categoria && (
-      <p className="text-sm text-gray-700 ml-0">
-        <b>Categoria:</b> {c.categoria}
-      </p>
-    )}
+                      {c.categoria && (
+                        <p className="text-sm text-gray-700 ml-0">
+                          <b>Categoria:</b> {c.categoria}
+                        </p>
+                      )}
 
-    {c.carteirinha && (
-      <p className="text-sm text-gray-700 ml-0">
-        <b>Nº da carteirinha:</b> {c.carteirinha}
-      </p>
-    )}
-  </>
-)}
+                      {c.carteirinha && (
+                        <p className="text-sm text-gray-700 ml-0">
+                          <b>Nº da carteirinha:</b> {c.carteirinha}
+                        </p>
+                      )}
+                    </>
+                  )}
 
 
                   {/* Valores */}
@@ -700,26 +700,26 @@ export default function AgendamentosScreen() {
                     </p>
                   )}
 
-{/* Convênio */}
-{c.tipoAtendimento === "convenio" && (
-  <>
-    <p className="text-sm text-gray-700 ml-0">
-      <b>Convênio:</b> {c.convenio}
-    </p>
+                  {/* Convênio */}
+                  {c.tipoAtendimento === "convenio" && (
+                    <>
+                      <p className="text-sm text-gray-700 ml-0">
+                        <b>Convênio:</b> {c.convenio}
+                      </p>
 
-    {c.categoria && (
-      <p className="text-sm text-gray-700 ml-0">
-        <b>Categoria:</b> {c.categoria}
-      </p>
-    )}
+                      {c.categoria && (
+                        <p className="text-sm text-gray-700 ml-0">
+                          <b>Categoria:</b> {c.categoria}
+                        </p>
+                      )}
 
-    {c.carteirinha && (
-      <p className="text-sm text-gray-700 ml-0">
-        <b>Nº da carteirinha:</b> {c.carteirinha}
-      </p>
-    )}
-  </>
-)}
+                      {c.carteirinha && (
+                        <p className="text-sm text-gray-700 ml-0">
+                          <b>Nº da carteirinha:</b> {c.carteirinha}
+                        </p>
+                      )}
+                    </>
+                  )}
 
 
                   {c.tipoAtendimento === "particular" && (
