@@ -1343,7 +1343,7 @@ function GerarSlotsModal({ open, onClose, onGenerate }) {
   const [dataFim, setDataFim] = useState("");
   const [horaInicio, setHoraInicio] = useState("08:00");
   const [horaFim, setHoraFim] = useState("18:00");
-  const [intervalo, setIntervalo] = useState(60);
+  const [intervalo, setIntervalo] = useState("");
   const [creating, setCreating] = useState(false);
   const [previewError, setPreviewError] = useState("");
   const [finalError, setFinalError] = useState("");
@@ -1609,7 +1609,7 @@ function GerarSlotsModal({ open, onClose, onGenerate }) {
           </div>
 
           <div>
-            <p className="text-sm font-medium">Intervalo (min):</p>
+            <p className="text-sm font-medium">Intervalo:</p>
             <IMaskInput
               mask={Number}
               scale={0}
@@ -1621,7 +1621,7 @@ function GerarSlotsModal({ open, onClose, onGenerate }) {
                 const n = Number(v);
                 setIntervalo(isNaN(n) ? 0 : n);
               }}
-              placeholder="Minutos (mín 30)"
+              placeholder="Minutos"
               className="w-full border px-2 py-1 rounded"
             />
 
