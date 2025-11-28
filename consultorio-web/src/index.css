@@ -29,166 +29,93 @@ input[type="time"] {
    ESTILO PROFISSIONAL PARA PDF
    ============================ */
 
+/* ===== AJUSTES PARA CABER EM 1 PÁGINA ===== */
+
 @media print {
 
-  @page {
-    size: A4;
-    margin: 14mm;
-  }
-
+  /* Reduz escala global */
   body {
-    background: white !important;
-    font-family: Arial, Helvetica, sans-serif !important;
+    zoom: 85%;
   }
 
-  /* Remove elementos de interação */
-  button,
-  select,
-  input {
-    display: none !important;
-  }
-
-  /* Remove sombras e arredondamentos exagerados */
-  * {
-    box-shadow: none !important;
-  }
-
-  /* Container do relatório */
-  .print\:bg-white {
-    background: white !important;
-    color: black !important;
-  }
-
-  .print-container {
-    width: 100% !important;
-  }
-
-  /* TÍTULO PRINCIPAL */
-  h1 {
-    text-align: center;
-    font-size: 20px !important;
-    margin-bottom: 6px !important;
-    border-bottom: 2px solid #000;
-    padding-bottom: 4px;
-  }
-
-  /* SUBTÍTULO */
-  .print-subtitle {
-    text-align: center;
-    font-size: 12px;
-    margin-bottom: 12px;
-  }
-
-  /* DASHBOARD */
+  /* Compactar dashboard */
   .print-dashboard {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 6mm;
-    margin-bottom: 8mm;
+    grid-template-columns: repeat(5, 1fr) !important;
+    gap: 4px !important;
+    margin-bottom: 6px !important;
   }
 
   .print-card {
-    border: 1px solid #000;
-    padding: 6mm;
-    text-align: center;
-    font-size: 10px;
+    padding: 4px !important;
+    font-size: 9px !important;
+    min-height: auto !important;
   }
 
   .print-card strong {
-    display: block;
-    font-size: 18px;
-    margin-top: 4px;
-  }
-
-  /* TÍTULOS DAS SEÇÕES */
-  h2 {
-    margin-top: 12px;
     font-size: 14px !important;
-    border-bottom: 1px solid #999;
-    padding-bottom: 3px;
+    margin-top: 2px !important;
   }
 
-  /* TABELAS */
-  table {
-    width: 100%;
-    border-collapse: collapse !important;
+  /* Títulos menores */
+  h1 {
+    font-size: 16px !important;
+    margin-bottom: 4px !important;
+    padding-bottom: 2px !important;
+  }
+
+  h2 {
+    font-size: 12px !important;
+    margin-top: 6px !important;
+    padding-bottom: 2px !important;
+  }
+
+  .print-subtitle {
     font-size: 10px !important;
-    margin-top: 6px;
+    margin-bottom: 6px !important;
   }
 
-  th {
-    background: #f0f0f0 !important;
-    border: 1px solid #000 !important;
-    padding: 4px;
+  /* Tabelas mais compactas */
+  table {
+    font-size: 9px !important;
+    margin-top: 4px !important;
   }
 
-  td {
-    border: 1px solid #999 !important;
-    padding: 4px;
+  th, td {
+    padding: 2px !important;
   }
 
-  /* LINHAS ZEBRADAS */
-  tbody tr:nth-child(even) {
-    background: #f9f9f9;
+  /* Barras de progresso menores */
+  .h-2 {
+    height: 4px !important;
   }
 
-  /* GRÁFICOS SIMULADOS */
-  .print-chart {
-    margin-top: 6px;
+  /* Remove espaços extras */
+  .print-container {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
   }
 
-  .print-bar {
-    height: 6px;
-    background: #000;
-  }
-
-  /* NÃO QUEBRAR TABELA NO MEIO */
-  table,
-  tr,
-  td,
-  th {
-    page-break-inside: avoid !important;
-  }
-
+  /* Evita quebra no meio */
   .avoid-break {
     page-break-inside: avoid !important;
   }
 
+  /* ESCONDE TOPO / NAVBAR */
   header,
   nav,
-  .top-bar,
+  .navbar,
+  .menu,
   .app-header,
-  .hr,
-  .divider {
+  .top-bar,
+  .sidebar,
+  .hamburger,
+  .mobile-header,
+  .fixed,
+  .sticky {
     display: none !important;
   }
 
-  .rounded-xl {
-    border-radius: 0 !important;
-  }
-
-  /* REMOVE SOMBRA */
-  .shadow-sm {
-    box-shadow: none !important;
-  }
-
-  /* GARANTE FUNDO RETO */
-  .bg-red-200,
-  .bg-green-200,
-  .bg-white {
-    background: #fff !important;
-  }
-
-  /* A BORDA AGORA FICA NO PRÓPRIO TABELA */
-  table {
-    border: 2px solid #000 !important;
-  }
-
-  /* REMOVE BORDA DUPLA DO CONTAINER */
-  .overflow-x-auto {
-    border: none !important;
-    padding: 0 !important;
-  }
-
-
 }
+
+
+

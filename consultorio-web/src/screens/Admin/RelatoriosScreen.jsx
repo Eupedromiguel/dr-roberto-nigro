@@ -100,20 +100,20 @@ export default function RelatoriosScreen() {
 
 
   function formatarMes(valor) {
-  if (!valor || !valor.includes("-")) return "";
+    if (!valor || !valor.includes("-")) return "";
 
-  const [ano, mes] = valor.split("-");
-  const index = Number(mes) - 1;
+    const [ano, mes] = valor.split("-");
+    const index = Number(mes) - 1;
 
-  const meses = [
-    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-  ];
+    const meses = [
+      "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+      "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ];
 
-  if (index < 0 || index > 11) return valor;
+    if (index < 0 || index > 11) return valor;
 
-  return `${meses[index]} / ${ano}`;
-}
+    return `${meses[index]} / ${ano}`;
+  }
 
 
 
@@ -249,7 +249,28 @@ export default function RelatoriosScreen() {
           });
         });
 
+        // =========================
+        // VERIFICAR SUBCOLEÇÃO RETORNO
+        // =========================
+        const retornoMap = {};
+
+        await Promise.all(
+          Object.keys(map).map(async (idConsulta) => {
+            const ref = collection(db, "appointments", idConsulta, "retorno");
+            const snap = await getDocs(ref);
+            retornoMap[idConsulta] = !snap.empty;
+          })
+        );
+
+
+        Object.keys(map).forEach(id => {
+          map[id].hasRetorno = retornoMap[id] || false;
+        });
+
+
         setAppointmentsMap(map);
+
+
       }
 
 
@@ -270,8 +291,36 @@ export default function RelatoriosScreen() {
   const totalCanceladas = canceladas.length;
   const total = totalConcluidas + totalCanceladas;
 
+  const totalRetornos = useMemo(() => {
+    return concluidas.filter(c => {
+      const ap = appointmentsMap[c.idConsulta];
+      return ap?.hasRetorno === true;
+    }).length;
+  }, [concluidas, appointmentsMap]);
+
+  const totalConclusoesSemRetorno = useMemo(() => {
+    return concluidas.filter(c => {
+      const ap = appointmentsMap[c.idConsulta];
+      return ap?.hasRetorno !== true;
+    }).length;
+  }, [concluidas, appointmentsMap]);
+
+  const taxaRetorno =
+    totalConcluidas > 0
+      ? ((totalRetornos / totalConcluidas) * 100).toFixed(1)
+      : "0.0";
+
+  const taxaSemRetorno =
+    totalConcluidas > 0
+      ? ((totalConclusoesSemRetorno / totalConcluidas) * 100).toFixed(1)
+      : "0.0";
+
+
   const taxaCancelamento =
     total > 0 ? ((totalCanceladas / total) * 100).toFixed(1) : "0.0";
+
+  const taxaConclusao =
+    total > 0 ? ((totalConcluidas / total) * 100).toFixed(1) : "0.0";
 
   // Distribuição por dia (usando appointmentOriginalCreatedAt ou dataConsulta)
   const atendimentosPorDia = useMemo(() => {
@@ -316,31 +365,52 @@ export default function RelatoriosScreen() {
     try {
       const rows = [];
       rows.push([
-        "Tipo",
-        "Consulta ID",
-        "Médico ID",
-        "Paciente ID",
-        "Data consulta",
         "Status",
-        "Concluída por / Cancelada por",
-        "Agendado em",
+        "Consulta ID",
+        "Médico",
+        "Tipo de Atendimento",
+        "Tipo de Consulta",
+        "Convênio / Categoria",
+        "Valor",
+        "Data da Consulta",
+        "Agendada em"
       ]);
+
 
       concluidas.forEach((c) => {
         const by =
           c.concludedBy === "admin"
             ? "Admin"
             : medicoSelecionado?.nome || "Médico";
+        const ap = appointmentsMap[c.idConsulta] || {};
+
+        const tipoAtendimento = ap.tipoAtendimento || "-";
+        const tipoConsulta = ap.tipoConsulta || "-";
+
+        let convenioInfo = "-";
+        let valor = "-";
+
+        if (tipoAtendimento === "convenio") {
+          convenioInfo = `${ap.convenio || "-"} / ${ap.categoria || "-"}`;
+        } else if (tipoAtendimento === "particular") {
+          valor = tipoConsulta === "teleconsulta"
+            ? ap.valorteleConsulta || ap.valorConsulta || "-"
+            : ap.valorConsulta || "-";
+        }
+
+
         rows.push([
           "Concluída",
           c.idConsulta || c.id,
-          c.medicoId,
-          c.pacienteId,
+          medicoSelecionado?.nome || "",
+          tipoAtendimento,
+          tipoConsulta,
+          convenioInfo,
+          valor,
           formatDateTime(getDataConsultaReal(c)),
-          c.status,
-          by,
           formatDateTime(c.appointmentOriginalCreatedAt),
         ]);
+
       });
 
       canceladas.forEach((c) => {
@@ -351,16 +421,35 @@ export default function RelatoriosScreen() {
         else if (c.canceledBy === "admin") by = "Admin";
         else by = c.canceledBy || "";
 
+        const ap = appointmentsMap[c.idConsulta] || {};
+
+        const tipoAtendimento = ap.tipoAtendimento || "-";
+        const tipoConsulta = ap.tipoConsulta || "-";
+
+        let convenioInfo = "-";
+        let valor = "-";
+
+        if (tipoAtendimento === "convenio") {
+
+          convenioInfo = `${ap.convenio || "-"} / ${ap.categoria || "-"}`;
+        } else if (tipoAtendimento === "particular") {
+          valor = tipoConsulta === "teleconsulta"
+            ? ap.valorteleConsulta || ap.valorConsulta || "-"
+            : ap.valorConsulta || "-";
+        }
+
         rows.push([
           "Cancelada",
           c.idConsulta || c.id,
-          c.medicoId,
-          c.pacienteId,
+          medicoSelecionado?.nome || "",
+          tipoAtendimento,
+          tipoConsulta,
+          convenioInfo,
+          valor,
           formatDateTime(getDataConsultaReal(c)),
-          c.status,
-          by,
           formatDateTime(c.appointmentOriginalCreatedAt),
         ]);
+
       });
 
       const csvContent = rows
@@ -432,7 +521,7 @@ export default function RelatoriosScreen() {
 
   return (
     <div className="p-0 space-y-2 print:bg-white print-container">
-      <h1 className="text-sm font-bold mb-2 text-white print:text-gray-800">Relatórios Mensais</h1>
+      <h1 className="text-sm font-bold mb-2 text-white print:text-gray-800">Relatório Mensal</h1>
       {/* FILTROS */}
       <div className="flex flex-wrap gap-2 items-end bg-white border border-slate-200 rounded-xl p-4 shadow-sm print:hidden">
         <div className="flex flex-col">
@@ -485,63 +574,63 @@ export default function RelatoriosScreen() {
           />
 
           {openMonth && (
-  <div
-    className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center"
-    onClick={() => setOpenMonth(false)}
-  >
-    <div
-      className="bg-white p-4 rounded-xl w-72"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="flex items-center justify-between mb-3">
-        <button
-          className="text-lg"
-          onClick={() => setAnoSelecionado(a => a - 1)}
-        >
-          ◀
-        </button>
-
-        <span className="font-semibold">{anoSelecionado}</span>
-
-        <button
-          className="text-lg"
-          onClick={() => setAnoSelecionado(a => a + 1)}
-        >
-          ▶
-        </button>
-      </div>
-
-      <div className="grid grid-cols-3 gap-2 mt-2">
-        {[
-          "Jan","Fev","Mar","Abr","Mai","Jun",
-          "Jul","Ago","Set","Out","Nov","Dez"
-        ].map((m, i) => {
-          const valor = `${anoSelecionado}-${String(i + 1).padStart(2, "0")}`;
-
-          return (
-            <button
-              key={m}
-              onClick={() => {
-                setMes(valor);
-                setOpenMonth(false);
-              }}
-              className="border rounded py-2 text-sm hover:bg-yellow-400"
+            <div
+              className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center"
+              onClick={() => setOpenMonth(false)}
             >
-              {m}
-            </button>
-          );
-        })}
-      </div>
+              <div
+                className="bg-white p-4 rounded-xl w-72"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <button
+                    className="text-lg"
+                    onClick={() => setAnoSelecionado(a => a - 1)}
+                  >
+                    ◀
+                  </button>
 
-      <button
-        onClick={() => setOpenMonth(false)}
-        className="mt-4 text-sm text-gray-500 w-full"
-      >
-        Cancelar
-      </button>
-    </div>
-  </div>
-)}
+                  <span className="font-semibold">{anoSelecionado}</span>
+
+                  <button
+                    className="text-lg"
+                    onClick={() => setAnoSelecionado(a => a + 1)}
+                  >
+                    ▶
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  {[
+                    "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+                    "Jul", "Ago", "Set", "Out", "Nov", "Dez"
+                  ].map((m, i) => {
+                    const valor = `${anoSelecionado}-${String(i + 1).padStart(2, "0")}`;
+
+                    return (
+                      <button
+                        key={m}
+                        onClick={() => {
+                          setMes(valor);
+                          setOpenMonth(false);
+                        }}
+                        className="border rounded py-2 text-sm hover:bg-yellow-400"
+                      >
+                        {m}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => setOpenMonth(false)}
+                  className="mt-4 text-sm text-gray-500 w-full"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
 
 
 
@@ -575,10 +664,10 @@ export default function RelatoriosScreen() {
             </span>
           )}
           {mes && (
-  <span>
-    <b>Mês:</b> {formatarMes(mes)}
-  </span>
-)}
+            <span>
+              <b>Mês:</b> {formatarMes(mes)}
+            </span>
+          )}
 
         </div>
       )}
@@ -586,55 +675,89 @@ export default function RelatoriosScreen() {
       {/* DASHBOARD */}
       {total > 0 && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 print-dashboard">
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl print-card">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-2 print-dashboard">
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl print-card">
               <p className="text-xs uppercase text-emerald-700 font-semibold">
                 Concluídas
               </p>
-              <p className="text-2xl font-bold text-emerald-900 mt-1">
+              <p className="text-xl font-bold text-emerald-900 mt-1">
                 {totalConcluidas}
               </p>
             </div>
 
-            <div className="p-4 bg-red-50 border border-red-200 rounded-xl print-card">
+
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl print-card">
               <p className="text-xs uppercase text-red-700 font-semibold">
                 Canceladas
               </p>
-              <p className="text-2xl font-bold text-red-900 mt-1">
+              <p className="text-xl font-bold text-red-900 mt-1">
                 {totalCanceladas}
               </p>
             </div>
 
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl print-card">
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl print-card">
               <p className="text-xs uppercase text-slate-600 font-semibold">
                 Total de atendimentos
               </p>
-              <p className="text-2xl font-bold text-slate-900 mt-1">
+              <p className="text-xl font-bold text-slate-900 mt-1">
                 {total}
               </p>
             </div>
 
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl print-card">
-              <p className="text-xs uppercase text-amber-700 font-semibold">
-                % Cancelamento
+
+            <div className="p-3 bg-violet-50 border border-violet-200 rounded-xl print-card">
+              <p className="text-xs uppercase text-violet-700 font-semibold">
+                Retornos
               </p>
-              <p className="text-2xl font-bold text-amber-900 mt-1">
-                {taxaCancelamento}%
+
+              <p className="text-xl font-bold text-violet-900 mt-1">
+                {totalRetornos}
               </p>
-              <div className="mt-2 h-2 rounded-full bg-amber-100 overflow-hidden">
+
+              <p className="text-xs text-violet-700 mt-1">
+                {taxaRetorno}% das conclusões
+              </p>
+
+              <div className="mt-1 h-1.5 rounded-full bg-violet-100 overflow-hidden">
                 <div
-                  className="h-full bg-amber-500"
-                  style={{ width: `${taxaCancelamento}%` }}
+                  className="h-full bg-violet-500"
+                  style={{ width: `${taxaRetorno}%` }}
                 />
               </div>
             </div>
+
+            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl print-card">
+              <p className="text-xs uppercase text-indigo-700 font-semibold">
+                Concluídas s/retorno
+              </p>
+
+              <p className="text-xl font-bold text-indigo-900 mt-1">
+                {totalConclusoesSemRetorno}
+              </p>
+
+              <p className="text-xs text-indigo-700 mt-1">
+                {taxaSemRetorno}% das conclusões
+              </p>
+
+              <div className="mt-1 h-1.5 rounded-full bg-indigo-100 overflow-hidden">
+                <div
+                  className="h-full bg-indigo-500"
+                  style={{ width: `${taxaSemRetorno}%` }}
+                />
+              </div>
+            </div>
+
+
           </div>
 
-          {/* "Gráfico" Pizza simplificado */}
+
+
+          {/* "Gráfico" simplificado */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-1">
             <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
               <h3 className="text-sm font-semibold mb-3">
-                Distribuição Concluídas / Canceladas
+                Concluídas / Canceladas
               </h3>
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
@@ -755,6 +878,11 @@ export default function RelatoriosScreen() {
                       <th className="px-3 py-2 text-left border-b text-xs font-semibold">
                         Agendado em
                       </th>
+                      <th className="px-3 py-2 text-left border-b text-xs font-semibold">Atendimento</th>
+                      <th className="px-3 py-2 text-left border-b text-xs font-semibold">Consulta</th>
+                      <th className="px-3 py-2 text-left border-b text-xs font-semibold">Convênio / Categoria</th>
+                      <th className="px-3 py-2 text-left border-b text-xs font-semibold">Valor</th>
+
                     </tr>
                   </thead>
                   <tbody>
@@ -763,6 +891,22 @@ export default function RelatoriosScreen() {
                         c.concludedBy === "admin"
                           ? "Admin"
                           : medicoSelecionado?.nome || "Médico";
+                      const ap = appointmentsMap[c.idConsulta] || {};
+
+                      const tipoAtendimento = ap.tipoAtendimento || "-";
+                      const tipoConsulta = ap.tipoConsulta || "-";
+
+                      let convenioInfo = "-";
+                      let valor = "-";
+
+                      if (tipoAtendimento === "convenio") {
+                        convenioInfo = `${ap.convenio || "-"} / ${ap.categoria || "-"}`;
+                      } else if (tipoAtendimento === "particular") {
+                        valor = tipoConsulta === "teleconsulta"
+                          ? ap.valorteleConsulta || ap.valorConsulta || "-"
+                          : ap.valorConsulta || "-";
+                      }
+
                       return (
                         <tr key={c.id} className="hover:bg-slate-50">
                           <td className="px-3 py-2 border-b">
@@ -779,6 +923,11 @@ export default function RelatoriosScreen() {
                               c.appointmentOriginalCreatedAt
                             )}
                           </td>
+                          <td className="px-3 py-2 border-b">{tipoAtendimento}</td>
+                          <td className="px-3 py-2 border-b">{tipoConsulta}</td>
+                          <td className="px-3 py-2 border-b">{convenioInfo}</td>
+                          <td className="px-3 py-2 border-b">{valor}</td>
+
                         </tr>
                       );
                     })}
@@ -815,37 +964,62 @@ export default function RelatoriosScreen() {
                       <th className="px-3 py-2 text-left border-b text-xs font-semibold">
                         Agendado em
                       </th>
+                      <th className="px-3 py-2 text-left border-b text-xs font-semibold">Atendimento</th>
+                      <th className="px-3 py-2 text-left border-b text-xs font-semibold">Consulta</th>
+                      <th className="px-3 py-2 text-left border-b text-xs font-semibold">Convênio / Categoria</th>
+                      <th className="px-3 py-2 text-left border-b text-xs font-semibold">Valor</th>
                     </tr>
                   </thead>
                   <tbody>
                     {canceladasOrdenadas.map((c) => {
                       let by = "";
                       if (c.canceledBy === "patient") by = "Paciente";
-                      else if (c.canceledBy === "doctor")
-                        by = medicoSelecionado?.nome || "Médico";
+                      else if (c.canceledBy === "doctor") by = medicoSelecionado?.nome || "Médico";
                       else if (c.canceledBy === "admin") by = "Admin";
-                      else by = c.canceledBy || "";
+
+                      const ap = appointmentsMap[c.idConsulta] || {};
+
+                      const tipoAtendimento = ap.tipoAtendimento || "-";
+                      const tipoConsulta = ap.tipoConsulta || "-";
+
+                      let convenioInfo = "-";
+                      let valor = "-";
+
+                      if (tipoAtendimento === "convenio") {
+                        convenioInfo =
+                          ap.convenio ||
+                          ap.nomeConvenio ||
+                          "-";
+
+                        if (ap.categoria) {
+                          convenioInfo += ` / ${ap.categoria}`;
+                        }
+                      }
+
+                      if (tipoAtendimento === "particular") {
+                        valor = tipoConsulta === "teleconsulta"
+                          ? ap.valorteleConsulta || ap.valorConsulta || "-"
+                          : ap.valorConsulta || "-";
+                      }
+
+
 
                       return (
-                        <tr key={c.id} className="hover:bg-slate-50">
-                          <td className="px-3 py-2 border-b">
-                            {c.idConsulta || c.id}
-                          </td>
-                          <td className="px-3 py-2 border-b">
-                            {formatDateTime(getDataConsultaReal(c))
-                            }
-                          </td>
+                        <tr key={c.id}>
+                          <td className="px-3 py-2 border-b">{c.idConsulta || c.id}</td>
+                          <td className="px-3 py-2 border-b">{formatDateTime(getDataConsultaReal(c))}</td>
                           <td className="px-3 py-2 border-b">{by}</td>
+                          <td className="px-3 py-2 border-b">{formatDateTime(c.appointmentOriginalCreatedAt)}</td>
+                          <td className="px-3 py-2 border-b">{tipoAtendimento}</td>
+                          <td className="px-3 py-2 border-b">{tipoConsulta}</td>
+                          <td className="px-3 py-2 border-b">{convenioInfo}</td>
+                          <td className="px-3 py-2 border-b">{valor}</td>
 
-                          <td className="px-3 py-2 border-b">
-                            {formatDateTime(
-                              c.appointmentOriginalCreatedAt
-                            )}
-                          </td>
                         </tr>
                       );
                     })}
                   </tbody>
+
                 </table>
               </div>
             )}
