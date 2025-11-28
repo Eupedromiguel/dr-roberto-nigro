@@ -93,8 +93,14 @@ export default function RelatoriosScreen() {
   const [buscou, setBuscou] = useState(false);
   const [openMonth, setOpenMonth] = useState(false);
   const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
+  const modoGeral = useMemo(() => medicoId === "__ALL__", [medicoId]);
 
 
+
+
+  function getNomeMedico(id) {
+    return medicos.find(m => m.id === id)?.nome || "Desconhecido";
+  }
 
 
 
@@ -172,10 +178,16 @@ export default function RelatoriosScreen() {
 
 
 
-    if (!medicoId || !mes) {
-      setErro("Selecione o médico e o mês.");
+    if (!mes) {
+      setErro("Selecione o mês.");
       return;
     }
+
+    if (!medicoId) {
+      setErro("Selecione o médico ou 'Todos os médicos'.");
+      return;
+    }
+
 
     try {
       setLoading(true);
@@ -195,11 +207,14 @@ export default function RelatoriosScreen() {
         monthDoc
       );
 
-      const qDone = query(doneCol, where("medicoId", "==", medicoId));
-      const qCanceled = query(
-        canceledCol,
-        where("medicoId", "==", medicoId)
-      );
+      const qDone = modoGeral
+        ? doneCol
+        : query(doneCol, where("medicoId", "==", medicoId));
+
+      const qCanceled = modoGeral
+        ? canceledCol
+        : query(canceledCol, where("medicoId", "==", medicoId));
+
 
       const [doneSnap, canceledSnap] = await Promise.all([
         getDocs(qDone),
@@ -381,7 +396,10 @@ export default function RelatoriosScreen() {
         const by =
           c.concludedBy === "admin"
             ? "Admin"
-            : medicoSelecionado?.nome || "Médico";
+            : c.concludedBy === "doctor"
+              ? (modoGeral ? getNomeMedico(c.medicoId) : medicoSelecionado?.nome)
+              : "Sistema";
+
         const ap = appointmentsMap[c.idConsulta] || {};
 
         const tipoAtendimento = ap.tipoAtendimento || "-";
@@ -402,7 +420,8 @@ export default function RelatoriosScreen() {
         rows.push([
           "Concluída",
           c.idConsulta || c.id,
-          medicoSelecionado?.nome || "",
+          modoGeral ? getNomeMedico(c.medicoId) : (medicoSelecionado?.nome || "")
+          ,
           tipoAtendimento,
           tipoConsulta,
           convenioInfo,
@@ -417,7 +436,8 @@ export default function RelatoriosScreen() {
         let by = "";
         if (c.canceledBy === "patient") by = "Paciente";
         else if (c.canceledBy === "doctor")
-          by = medicoSelecionado?.nome || "Médico";
+          by = modoGeral ? getNomeMedico(c.medicoId) : medicoSelecionado?.nome
+            || "Médico";
         else if (c.canceledBy === "admin") by = "Admin";
         else by = c.canceledBy || "";
 
@@ -441,7 +461,8 @@ export default function RelatoriosScreen() {
         rows.push([
           "Cancelada",
           c.idConsulta || c.id,
-          medicoSelecionado?.nome || "",
+          modoGeral ? getNomeMedico(c.medicoId) : medicoSelecionado?.nome
+            || "",
           tipoAtendimento,
           tipoConsulta,
           convenioInfo,
@@ -472,7 +493,11 @@ export default function RelatoriosScreen() {
       const url = URL.createObjectURL(blob);
 
       const link = document.createElement("a");
-      const medicoNomeSafe = (medicoSelecionado?.nome || "medico")
+      const medicoNomeSafe = (modoGeral
+        ? "todos_medicos"
+        : (medicoSelecionado?.nome || "medico")
+      )
+
         .replace(/\s+/g, "_")
         .toLowerCase();
       const mesSafe = mes || "mes";
@@ -521,9 +546,10 @@ export default function RelatoriosScreen() {
 
   return (
     <div className="p-0 space-y-2 print:bg-white print-container">
-      <h1 className="text-sm font-bold mb-2 text-white print:text-gray-800">Relatório Mensal</h1>
+      <h1 className="text-sm font-bold mb-2 text-white print:text-gray-800">{modoGeral ? "Relatório Geral Mensal" : "Relatório Mensal"}</h1>
       {/* FILTROS */}
       <div className="flex flex-wrap gap-2 items-end bg-white border border-slate-200 rounded-xl p-4 shadow-sm print:hidden">
+
         <div className="flex flex-col">
           <label className="text-sm font-medium text-slate-700 mb-1">
             Médico
@@ -535,6 +561,8 @@ export default function RelatoriosScreen() {
               className="appearance-none border rounded-md px-3 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent w-full bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400"
             >
               <option value="">Selecione o médico</option>
+              <option value="__ALL__">Todos os médicos</option>
+
               {medicos.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.nome || m.email || m.id}
@@ -559,6 +587,7 @@ export default function RelatoriosScreen() {
           </div>
 
         </div>
+
 
         <div className="flex flex-col">
           <label className="text-sm font-medium text-slate-700 mb-1">
@@ -654,15 +683,16 @@ export default function RelatoriosScreen() {
       {/* INFO DO MÉDICO / MÊS */}
       {(medicoSelecionado || mes) && (
         <div className="text-sm text-white print:text-gray-800">
-          {medicoSelecionado && (
+          {modoGeral ? (
             <span className="mr-3">
-              <b className="print:hidden
-">Médico:</b> {medicoSelecionado.nome}
-              {medicoSelecionado.especialidade
-                ? ` — ${medicoSelecionado.especialidade}`
-                : ""}
+              <b>Médicos:</b> Todos
             </span>
-          )}
+          ) : medicoSelecionado ? (
+            <span className="mr-3">
+              <b>Médico:</b> {medicoSelecionado.nome}
+            </span>
+          ) : null}
+
           {mes && (
             <span>
               <b>Mês:</b> {formatarMes(mes)}
@@ -868,6 +898,13 @@ export default function RelatoriosScreen() {
                       <th className="px-3 py-2 text-left border-b text-xs font-semibold">
                         Consulta ID
                       </th>
+
+                      {modoGeral && (
+                        <th className="px-3 py-2 text-left border-b text-xs font-semibold">
+                          Médico
+                        </th>
+                      )}
+
                       <th className="px-3 py-2 text-left border-b text-xs font-semibold">
                         Data Consulta
                       </th>
@@ -890,7 +927,8 @@ export default function RelatoriosScreen() {
                       const by =
                         c.concludedBy === "admin"
                           ? "Admin"
-                          : medicoSelecionado?.nome || "Médico";
+                          : modoGeral ? getNomeMedico(c.medicoId) : medicoSelecionado?.nome
+                            || "Médico";
                       const ap = appointmentsMap[c.idConsulta] || {};
 
                       const tipoAtendimento = ap.tipoAtendimento || "-";
@@ -912,6 +950,12 @@ export default function RelatoriosScreen() {
                           <td className="px-3 py-2 border-b">
                             {c.idConsulta || c.id}
                           </td>
+                          {modoGeral && (
+                            <td className="px-3 py-2 border-b">
+                              {getNomeMedico(c.medicoId)}
+                            </td>
+                          )}
+
                           <td className="px-3 py-2 border-b">
                             {formatDateTime(getDataConsultaReal(c))
                             }
@@ -954,6 +998,13 @@ export default function RelatoriosScreen() {
                       <th className="px-3 py-2 text-left border-b text-xs font-semibold">
                         Consulta ID
                       </th>
+
+                      {modoGeral && (
+                        <th className="px-3 py-2 text-left border-b text-xs font-semibold">
+                          Médico
+                        </th>
+                      )}
+
                       <th className="px-3 py-2 text-left border-b text-xs font-semibold">
                         Data Consulta
                       </th>
@@ -974,7 +1025,8 @@ export default function RelatoriosScreen() {
                     {canceladasOrdenadas.map((c) => {
                       let by = "";
                       if (c.canceledBy === "patient") by = "Paciente";
-                      else if (c.canceledBy === "doctor") by = medicoSelecionado?.nome || "Médico";
+                      else if (c.canceledBy === "doctor") by = modoGeral ? getNomeMedico(c.medicoId) : medicoSelecionado?.nome
+                        || "Médico";
                       else if (c.canceledBy === "admin") by = "Admin";
 
                       const ap = appointmentsMap[c.idConsulta] || {};
@@ -1007,6 +1059,12 @@ export default function RelatoriosScreen() {
                       return (
                         <tr key={c.id}>
                           <td className="px-3 py-2 border-b">{c.idConsulta || c.id}</td>
+                          {modoGeral && (
+                            <td className="px-3 py-2 border-b">
+                              {getNomeMedico(c.medicoId)}
+                            </td>
+                          )}
+
                           <td className="px-3 py-2 border-b">{formatDateTime(getDataConsultaReal(c))}</td>
                           <td className="px-3 py-2 border-b">{by}</td>
                           <td className="px-3 py-2 border-b">{formatDateTime(c.appointmentOriginalCreatedAt)}</td>
