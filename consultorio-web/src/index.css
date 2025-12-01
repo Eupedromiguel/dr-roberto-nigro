@@ -38,6 +38,15 @@ input[type="time"] {
     zoom: 85%;
   }
 
+  /* CORREÇÃO PARA MAC / SAFARI */
+  @supports not (zoom: 1) {
+    body {
+      transform: scale(0.85);
+      transform-origin: top left;
+      width: 118%;
+    }
+  }
+
   /* Compactar dashboard */
   .print-dashboard {
     grid-template-columns: repeat(5, 1fr) !important;
@@ -80,7 +89,8 @@ input[type="time"] {
     margin-top: 4px !important;
   }
 
-  th, td {
+  th,
+  td {
     padding: 2px !important;
   }
 
@@ -116,6 +126,3 @@ input[type="time"] {
   }
 
 }
-
-
-

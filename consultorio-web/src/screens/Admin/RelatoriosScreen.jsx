@@ -96,6 +96,26 @@ export default function RelatoriosScreen() {
   const modoGeral = useMemo(() => medicoId === "__ALL__", [medicoId]);
 
 
+
+
+
+  function pertenceAoMesSelecionado(item) {
+    const raw = item.dataConsulta || item.appointmentOriginalCreatedAt;
+    if (!raw) return false;
+
+    const d = raw.toDate ? raw.toDate() : new Date(raw);
+    if (isNaN(d.getTime())) return false;
+
+    const mesConsulta = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+    return mesConsulta === mes;
+  }
+
+
+
+
+
+
   function pickValor(ap) {
     if (ap.tipoConsulta === "teleconsulta") {
       return ap.valorteleConsulta ?? ap.valorConsulta ?? 0;
@@ -248,16 +268,22 @@ export default function RelatoriosScreen() {
 
 
 
-      setConcluidas(concluidasData);
-      setCanceladas(canceladasData);
+      const concluidasFiltradas = concluidasData.filter(pertenceAoMesSelecionado);
+      const canceladasFiltradas = canceladasData.filter(pertenceAoMesSelecionado);
+
+      setConcluidas(concluidasFiltradas);
+      setCanceladas(canceladasFiltradas);
+
 
 
 
       // Buscar dados reais das consultas (appointments)
       const allIds = [
-        ...concluidasData.map((c) => c.idConsulta),
-        ...canceladasData.map((c) => c.idConsulta),
-      ].filter(Boolean);
+        ...concluidasFiltradas.map((c) => c.idConsulta),
+        ...canceladasFiltradas.map((c) => c.idConsulta),
+      ];
+
+
 
       if (allIds.length > 0) {
         const uniqueIds = Array.from(new Set(allIds));
@@ -587,12 +613,16 @@ export default function RelatoriosScreen() {
   function getDataConsultaReal(item) {
     const ap = appointmentsMap[item.idConsulta];
 
-    if (!ap) return item.dataConsulta || null;
+    // Prioridade: relatório
+    if (item.dataConsulta) return item.dataConsulta;
 
-    if (ap.horario) return ap.horario;
-    if (ap.dataConsulta) return ap.dataConsulta;
-    return item.dataConsulta || null;
+    // Fallback: appointments
+    if (ap?.horario) return ap.horario;
+    if (ap?.dataConsulta) return ap.dataConsulta;
+
+    return null;
   }
+
 
 
 

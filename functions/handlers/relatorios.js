@@ -10,6 +10,14 @@ exports.logAppointmentStatus = onDocumentUpdated(
   async (event) => {
     const before = event.data.before.data();
     const after = event.data.after.data();
+    const dataConsultaReal =
+      after.dataConsulta ||
+      after.horario ||
+      after.data ||
+      after.appointmentDate ||
+      after.criadoEm ||
+      null;
+
 
     const status = String(after.status || "").toLowerCase().trim();
     const canceledBy = String(after.canceledBy || "").toLowerCase().trim();
@@ -27,9 +35,23 @@ exports.logAppointmentStatus = onDocumentUpdated(
       return;
     }
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
+    let baseDate;
+
+    if (dataConsultaReal?.toDate) {
+      baseDate = dataConsultaReal.toDate();
+    } else {
+      baseDate = new Date(dataConsultaReal);
+    }
+
+    if (isNaN(baseDate.getTime())) {
+      console.warn("Data inválida, usando data atual para fallback");
+      baseDate = new Date();
+    }
+
+
+    const year = baseDate.getFullYear();
+    const month = String(baseDate.getMonth() + 1).padStart(2, "0");
+
     const monthDoc = `${year}_${month}`;
 
     const db = admin.firestore();
@@ -43,17 +65,19 @@ exports.logAppointmentStatus = onDocumentUpdated(
         const ref = db
           .collection("relatorios")
           .doc("appointments_done")
-          .collection(monthDoc)      
+          .collection(monthDoc)
           .doc(appointmentId);
 
-        console.log("🔥 ESCRITA DONE EM:", ref.path);
+
+
+        console.log("ESCRITA DONE EM:", ref.path);
 
         await ref.set(
           {
             idConsulta: appointmentId,
             medicoId: after.medicoId,
             pacienteId: after.pacienteId,
-            dataConsulta: after.dataConsulta || null,
+            dataConsulta: dataConsultaReal,
             especialidade: after.especialidade || null,
             valor: after.valor || 0,
             status: "concluida",
@@ -81,17 +105,19 @@ exports.logAppointmentStatus = onDocumentUpdated(
         const ref = db
           .collection("relatorios")
           .doc("appointments_canceled")
-          .collection(monthDoc)      
+          .collection(monthDoc)
           .doc(appointmentId);
 
-        console.log("🔥 ESCRITA CANCELED EM:", ref.path);
+
+
+        console.log("ESCRITA CANCELED EM:", ref.path);
 
         await ref.set(
           {
             idConsulta: appointmentId,
             medicoId: after.medicoId,
             pacienteId: after.pacienteId,
-            dataConsulta: after.dataConsulta || null,
+            dataConsulta: dataConsultaReal,
             motivo: after.cancelReason || null,
             canceledBy,
             status: "cancelada",
