@@ -307,10 +307,6 @@ export default function App() {
               }
             />
 
-            <Route
-              path="/admin"
-              element={<Navigate to="/admin/usuarios" replace />}
-            />
             
             <Route
               path="/admin/relatorios"
@@ -321,6 +317,11 @@ export default function App() {
                   </PrivateLayout>
                 </PrivateRoute>
               }
+            />
+
+            <Route
+              path="/admin"
+              element={<Navigate to="/" replace />}
             />
             
 

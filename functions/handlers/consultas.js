@@ -335,6 +335,8 @@ exports.listarConsultas = onCall(async (request) => {
 
   const uid = request.auth.uid;
   const role = request.auth.token.role || null;
+  const { medicoId } = request.data || {};
+
   let query;
 
   try {
@@ -343,7 +345,17 @@ exports.listarConsultas = onCall(async (request) => {
     } else if (role === "doctor") {
       query = db.collection("appointments").where("medicoId", "==", uid);
     } else if (role === "admin") {
-      query = db.collection("appointments");
+
+      if (!medicoId) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Administrador deve informar o médico."
+        );
+      }
+
+      query = db.collection("appointments")
+        .where("medicoId", "==", medicoId);
+
     } else {
       throw new HttpsError(
         "permission-denied",

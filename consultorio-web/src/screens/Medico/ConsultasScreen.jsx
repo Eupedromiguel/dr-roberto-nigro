@@ -147,10 +147,13 @@ export default function ConsultasScreen() {
 
 
 
+  const medicoId =
+    role === "doctor"
+      ? user?.uid
+      : role === "admin"
+        ? uid || null
+        : null;
 
-
-
-  const medicoId = role === "doctor" ? user?.uid : uid;
 
   const db = getFirestore();
   const navigate = useNavigate();
@@ -312,9 +315,11 @@ export default function ConsultasScreen() {
   }
 
   useEffect(() => {
+    if (role === "admin" && !medicoId) return;
     if (!medicoId) return;
     carregarConsultas(medicoId);
-  }, [medicoId]);
+  }, [medicoId, role]);
+
 
 
   useEffect(() => {
@@ -698,7 +703,7 @@ export default function ConsultasScreen() {
         {/* Campo de nome */}
         <input
           type="text"
-          placeholder="Pesquisar..."
+          placeholder="Pesquisar por nome, CPF, convênio, tipo"
           value={buscaNome}
           onChange={(e) => {
             setBuscaNome(e.target.value);
@@ -806,7 +811,7 @@ export default function ConsultasScreen() {
                 key={c.id}
                 className="relative border border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 p-5"
               >
-                
+
 
 
                 {/* Cabeçalho com nome do paciente */}
