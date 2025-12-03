@@ -21,7 +21,7 @@ import {
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { CalendarSearch, ClockPlus } from "lucide-react";
+import { CalendarSearch, ClockPlus, MailWarning } from "lucide-react";
 
 
 // Toaster reutilizável
@@ -308,15 +308,28 @@ export default function AgendarScreen() {
 
   if (!emailVerificado) {
     return (
-      <div className="max-w-xl mx-auto p-8 text-center bg-white border border-yellow-300 rounded-xl shadow-md">
-        <div className="text-5xl mb-3">📩</div>
+      <div className="max-w-xl mx-auto p-8 text-center bg-white rounded-xl shadow-md">
+        <MailWarning size={50} className="max-w-xl mx-auto text-yellow-500 text-center" />
         <p className="text-lg font-semibold text-gray-950 mb-2">
-          Antes de marcar, verifique seu e-mail.
+          Verifique seu e-mail.
         </p>
-        <p className="text-sm text-gray-600 mb-4">
-          Vá até a página <b>Meu Perfil</b> e confirme seu e-mail para liberar o
-          agendamento.
+        <p className="text-sm font-semibold text-gray-600 mb-4">
+          Ao criar sua conta enviamos um link para seu e-mail, não se esqueça de verificar o Spam e a Lixeira.
         </p>
+        <p className="
+  border 
+  border-gray-400 
+  rounded-full 
+  text-sm 
+  text-gray-600
+  font-normal 
+  mb-1 
+  px-4 
+  py-2
+">
+  Você também pode ir até a página <b>Meu Perfil</b> e solicitar um novo link de verificação.
+</p>
+
       </div>
     );
   }

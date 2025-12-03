@@ -5,6 +5,7 @@ import {
   RecaptchaVerifier,
   signInWithCredential,
   PhoneMultiFactorGenerator,
+  sendPasswordResetEmail, 
 } from "firebase/auth";
 import { auth } from "../../services/firebase";
 import { Link, useNavigate } from "react-router-dom";
@@ -18,6 +19,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
+  const [mensagemInfo, setMensagemInfo] = useState(""); 
   const [loading, setLoading] = useState(false);
   const [mostrarSenha, setMostrarSenha] = useState(false);
 
@@ -29,11 +31,14 @@ export default function LoginScreen() {
   const [contador, setContador] = useState(0);
   const [mostrarSucesso, setMostrarSucesso] = useState(false);
 
+  // modal de “esqueci minha senha”
+  const [modalResetOpen, setModalResetOpen] = useState(false);
+  const [emailReset, setEmailReset] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+
   const navigate = useNavigate();
 
-  
   // Inicializa reCAPTCHA invisível
-
   async function initRecaptcha() {
     try {
       if (window.recaptchaVerifier) {
@@ -59,6 +64,22 @@ export default function LoginScreen() {
     }
   }
 
+  // Contador de tempo para mensagem info
+  useEffect(() => {
+  if (!mensagemInfo) {
+    return;
+  }
+
+  const timer = setTimeout(() => {
+    setMensagemInfo("");
+  }, 3000);
+
+  return () => {
+    clearTimeout(timer);
+  };
+}, [mensagemInfo]);
+
+
   // Contador reenvio
   useEffect(() => {
     if (contador <= 0) return;
@@ -66,12 +87,11 @@ export default function LoginScreen() {
     return () => clearInterval(t);
   }, [contador]);
 
-
   // Login principal
-
   async function handleLogin(e) {
     e.preventDefault();
     setErro("");
+    setMensagemInfo(""); // <<< NOVO: limpa info ao tentar logar
     setLoading(true);
 
     try {
@@ -107,9 +127,7 @@ export default function LoginScreen() {
     }
   }
 
-
   // Confirmar código SMS
-
   async function handleConfirmarCodigo() {
     if (!codigoSMS.trim()) return setErro("Digite o código recebido por SMS.");
     if (!verificationId || !mfaResolver)
@@ -134,9 +152,7 @@ export default function LoginScreen() {
     }
   }
 
-
   // Reenviar código SMS
-
   async function reenviarSMS() {
     if (!mfaResolver || contador > 0) return;
     try {
@@ -158,9 +174,49 @@ export default function LoginScreen() {
     }
   }
 
+  // =====================================================
+  // Esqueci minha senha – envia e-mail de redefinição
+  // =====================================================
+  async function handleEnviarReset() {
+    const emailAlvo = emailReset.trim();
+
+    if (!emailAlvo) {
+      setErro("Informe o e-mail para redefinir a senha.");
+      return;
+    }
+
+    try {
+      setErro("");
+      setMensagemInfo("");
+      setResetLoading(true);
+
+      await sendPasswordResetEmail(auth, emailAlvo, {
+        url: "https://consultorio-app-2156a.web.app/auth/action",
+        handleCodeInApp: true,
+      });
+
+      setModalResetOpen(false);
+      setMensagemInfo(
+        "Enviamos um link para redefinir sua senha. Verifique seu e-mail (Não se esqueça de verificar a caixa de spam e lixeira)."
+      );
+      setEmailReset("");
+    } catch (err) {
+      console.error("Erro ao enviar reset de senha:", err);
+
+      let msg = "Não foi possível enviar o e-mail de redefinição.";
+      if (err.code === "auth/user-not-found") {
+        msg = "Não existe uma conta cadastrada com este e-mail.";
+      } else if (err.code === "auth/invalid-email") {
+        msg = "E-mail inválido. Verifique e tente novamente.";
+      }
+
+      setErro(msg);
+    } finally {
+      setResetLoading(false);
+    }
+  }
 
   // JSX
-
   return (
     <>
       <AuthCard
@@ -177,6 +233,12 @@ export default function LoginScreen() {
         {erro && (
           <div className="mb-3 rounded-md bg-red-50 text-red-700 p-2 text-sm">
             {erro}
+          </div>
+        )}
+
+        {mensagemInfo && (
+          <div className="mb-3 rounded-md bg-green-50 text-green-700 p-2 text-sm">
+            {mensagemInfo}
           </div>
         )}
 
@@ -211,7 +273,27 @@ export default function LoginScreen() {
             </button>
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full bg-gray-950 text-white hover:bg-yellow-400">
+          {/* link Esqueci minha senha */}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setErro("");
+                setMensagemInfo("");
+                setEmailReset(email); 
+                setModalResetOpen(true);
+              }}
+              className="text-xs text-gray-600 hover:text-yellow-500 hover:underline"
+            >
+              Esqueci minha senha
+            </button>
+          </div>
+
+          <Button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gray-950 text-white hover:bg-yellow-400"
+          >
             {loading ? "Entrando..." : "Login"}
           </Button>
         </form>
@@ -289,7 +371,64 @@ export default function LoginScreen() {
         )}
       </AnimatePresence>
 
-      {/* Modal de Sucesso */}
+      {/* ================================
+          MODAL ESQUECI MINHA SENHA
+      ================================ */}
+      <AnimatePresence>
+        {modalResetOpen && (
+          <motion.div
+            className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white rounded-2xl shadow-xl p-6 w-[90%] max-w-md"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+            >
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                Esqueci minha senha
+              </h2>
+              <p className="text-gray-700 text-sm mb-4">
+                Informe o e-mail cadastrado para enviarmos um link de redefinição.
+              </p>
+
+              <input
+                type="email"
+                value={emailReset}
+                onChange={(e) => setEmailReset(e.target.value)}
+                placeholder="seuemail@exemplo.com"
+                className="w-full border border-gray-400 rounded-md px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              />
+
+              <div className="flex justify-end gap-2 mt-3">
+                <Button
+                  onClick={() => {
+                    if (!resetLoading) {
+                      setModalResetOpen(false);
+                    }
+                  }}
+                  className="bg-gray-300 hover:bg-gray-400 text-gray-900 px-3 py-1 rounded-md"
+                  disabled={resetLoading}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleEnviarReset}
+                  disabled={resetLoading}
+                  className="bg-gray-950 text-white hover:bg-yellow-400 px-3 py-1 rounded-md"
+                >
+                  {resetLoading ? "Enviando..." : "Enviar link"}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Sucesso (login) */}
       <AnimatePresence>
         {mostrarSucesso && (
           <motion.div
