@@ -246,7 +246,6 @@ export default function PerfilScreen() {
 
   }
 
-  // PerfilScreen.jsx - função handleAtualizarEmail
 
 async function handleAtualizarEmail() {
   try {
@@ -256,7 +255,7 @@ async function handleAtualizarEmail() {
     setMensagemModal("");
     setSalvando(true);
 
-    // ⬇️ Limpe o email no frontend também
+    // Limpe o email no frontend também
     const emailLimpo = novoEmail.trim().toLowerCase();
 
     if (!emailLimpo) {
@@ -265,7 +264,7 @@ async function handleAtualizarEmail() {
       return;
     }
 
-    // ⬇️ Valide o formato
+    // Valide o formato
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(emailLimpo)) {
       setErroModal("Formato de e-mail inválido.");
@@ -297,7 +296,7 @@ async function handleAtualizarEmail() {
     const solicitarTroca = httpsCallable(functions, "notificacoes-solicitarTrocaEmail");
 
     const res = await solicitarTroca({
-      novoEmail: emailLimpo, // ⬅️ Use o email limpo
+      novoEmail: emailLimpo, 
     });
 
     if (res.data?.sucesso) {
