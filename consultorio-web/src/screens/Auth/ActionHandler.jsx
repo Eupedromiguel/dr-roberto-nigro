@@ -38,7 +38,7 @@ export default function ActionHandler() {
       try {
         switch (mode) {
           // =====================================================
-          // 1. Verificação de e-mail
+          // Verificação de e-mail
           // =====================================================
           case "verifyEmail":
             try {
@@ -89,7 +89,7 @@ export default function ActionHandler() {
             break;
 
           // =====================================================
-          // 2. Redefinição de senha
+          // Redefinição de senha
           // =====================================================
           case "resetPassword": {
             const emailFromCode = await verifyPasswordResetCode(
@@ -102,28 +102,37 @@ export default function ActionHandler() {
           }
 
           // =====================================================
-          // 3. Recuperação de e-mail
+          // Mudar email
           // =====================================================
-          case "recoverEmail": {
-            const info = await checkActionCode(auth, actionCode);
-            const restoredEmail = info.data.email;
 
-            await applyActionCode(auth, actionCode);
-            await sendPasswordResetEmail(auth, restoredEmail);
+          case "verifyAndChangeEmail":
+            try {
+              console.log("Confirmando troca de e-mail...");
 
-            setStatus("success");
-            setMessage(
-              `O e-mail foi revertido para ${restoredEmail}. Verifique sua caixa de entrada.`
-            );
+              // aplica a alteração de e-mail
+              await applyActionCode(auth, actionCode);
+
+              setStatus("success");
+              setMessage("E-mail alterado com sucesso! Faça login novamente.");
+
+              // Redirecionar após alguns segundos
+              setTimeout(() => {
+                window.location.href = "/login";
+              }, 15000);
+            } catch (err) {
+              console.error("Erro ao confirmar troca de e-mail:", err);
+              setStatus("error");
+              setMessage("Link inválido ou expirado para troca de e-mail.");
+            }
             break;
-          }
 
           // =====================================================
-          // 4. Ação inválida / não suportada
+          // Ação inválida / não suportada
           // =====================================================
           default:
+            console.log("MODE DESCONHECIDO:", mode);
             setStatus("error");
-            setMessage("Faça login novamente para atualizar sua conta.");
+            setMessage("Ação inválida: " + mode);
         }
       } catch (err) {
         console.error("Erro no link do Firebase:", err);
@@ -139,39 +148,9 @@ export default function ActionHandler() {
       setStatus("error");
       setMessage("Link expirado.");
     }
-  }, [mode, actionCode, continueUrl]); 
+  }, [mode, actionCode, continueUrl]);
 
-  // =============================================================
-  // Confirmação da nova senha
-  // =============================================================
-  async function handlePasswordConfirm() {
-    setPasswordError("");
-
-    if (!newPassword || newPassword.length < 6) {
-      setPasswordError("A senha deve ter pelo menos 6 caracteres.");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setPasswordError("As senhas não coincidem.");
-      return;
-    }
-
-    try {
-      await confirmPasswordReset(auth, actionCode, newPassword);
-
-      setStatus("success");
-      setMessage("Senha redefinida com sucesso! Agora você já pode fazer login.");
-
-      setNewPassword("");
-      setConfirmPassword("");
-    } catch (error) {
-      console.error(error);
-      setPasswordError(
-        "Erro ao redefinir senha. O link pode ter expirado. Tente novamente."
-      );
-    }
-  }
+  
 
   // =============================================================
   // Interface visual
@@ -192,7 +171,7 @@ export default function ActionHandler() {
             )}
 
             {!isPasswordReset && continueUrl && (
-              <a href={continueUrl}>
+              <a href="/login">
                 <Button className="mt-4 w-full">Voltar ao aplicativo</Button>
               </a>
             )}
