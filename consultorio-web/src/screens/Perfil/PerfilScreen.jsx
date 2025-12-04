@@ -218,77 +218,77 @@ export default function PerfilScreen() {
 
   }
 
-async function handleAtualizarEmail() {
-  try {
-    setErro("");
-    setMensagem("");
-    setErroModal("");
-    setMensagemModal("");
-    setSalvando(true);
+  async function handleAtualizarEmail() {
+    try {
+      setErro("");
+      setMensagem("");
+      setErroModal("");
+      setMensagemModal("");
+      setSalvando(true);
 
-    if (!novoEmail.trim()) {
-      setErroModal("Informe o novo e-mail.");
-      return;
+      if (!novoEmail.trim()) {
+        setErroModal("Informe o novo e-mail.");
+        return;
+      }
+
+      if (!senha.trim()) {
+        setErroModal("Digite sua senha para confirmar a alteração.");
+        return;
+      }
+
+      const currentUser = auth.currentUser;
+
+      if (!currentUser?.email) {
+        setErroModal("Sessão inválida. Faça login novamente.");
+        return;
+      }
+
+      // 1. Reautenticar usuário
+      const cred = EmailAuthProvider.credential(currentUser.email, senha);
+
+      await reauthenticateWithCredential(currentUser, cred).catch(() => {
+        throw new Error("Senha incorreta.");
+      });
+
+      // 2. Chamar Cloud Function segura
+      const solicitarTroca = httpsCallable(functions, "usuarios-solicitarTrocaEmail");
+
+      const res = await solicitarTroca({
+        novoEmail: novoEmail.trim(),
+      });
+
+      if (res.data?.sucesso) {
+        setMensagemModal(
+          "Enviamos um link de confirmação para o novo e-mail. A alteração só será aplicada após a confirmação."
+        );
+
+        setNovoEmail("");
+        setSenha("");
+        setModo(null);
+        return;
+      }
+
+      setErroModal("Falha ao solicitar troca de e-mail.");
+    } catch (e) {
+      const msg = e.message || "";
+
+      if (msg.includes("Senha incorreta")) {
+        setErroModal("Senha incorreta.");
+      }
+      else if (msg.includes("email-already-in-use")) {
+        setErroModal("Este e-mail já está em uso.");
+      }
+      else if (msg.includes("invalid-email")) {
+        setErroModal("Formato de e-mail inválido.");
+      }
+      else {
+        setErroModal("Erro ao tentar atualizar e-mail.");
+      }
+
+    } finally {
+      setSalvando(false);
     }
-
-    if (!senha.trim()) {
-      setErroModal("Digite sua senha para confirmar a alteração.");
-      return;
-    }
-
-    const currentUser = auth.currentUser;
-
-    if (!currentUser?.email) {
-      setErroModal("Sessão inválida. Faça login novamente.");
-      return;
-    }
-
-    // 1. Reautenticar usuário
-    const cred = EmailAuthProvider.credential(currentUser.email, senha);
-
-    await reauthenticateWithCredential(currentUser, cred).catch(() => {
-      throw new Error("Senha incorreta.");
-    });
-
-    // 2. Chamar Cloud Function segura
-    const solicitarTroca = httpsCallable(functions, "usuarios-solicitarTrocaEmail");
-
-    const res = await solicitarTroca({
-      novoEmail: novoEmail.trim(),
-    });
-
-    if (res.data?.sucesso) {
-      setMensagemModal(
-        "Enviamos um link de confirmação para o novo e-mail. A alteração só será aplicada após a confirmação."
-      );
-
-      setNovoEmail("");
-      setSenha("");
-      setModo(null);
-      return;
-    }
-
-    setErroModal("Falha ao solicitar troca de e-mail.");
-  } catch (e) {
-    const msg = e.message || "";
-
-    if (msg.includes("Senha incorreta")) {
-      setErroModal("Senha incorreta.");
-    }
-    else if (msg.includes("email-already-in-use")) {
-      setErroModal("Este e-mail já está em uso.");
-    }
-    else if (msg.includes("invalid-email")) {
-      setErroModal("Formato de e-mail inválido.");
-    }
-    else {
-      setErroModal("Erro ao tentar atualizar e-mail.");
-    }
-
-  } finally {
-    setSalvando(false);
   }
-}
 
 
 
@@ -304,11 +304,11 @@ async function handleAtualizarEmail() {
         return;
       }
 
-if (senha !== confirmarSenha) {
-  setErroModal("As senhas não coincidem.");
-  setSalvando(false);
-  return;
-}
+      if (senha !== confirmarSenha) {
+        setErroModal("As senhas não coincidem.");
+        setSalvando(false);
+        return;
+      }
 
 
 
@@ -396,19 +396,47 @@ if (senha !== confirmarSenha) {
             <div className="space-y-3">
               <div className="flex flex-wrap items-center text-white gap-x-2 gap-y-1">
                 <Mail className="text-yellow-400 flex-shrink-0" size={18} />
+
                 <p className="break-all">
                   <b></b> {user.email}
                 </p>
+
                 {emailVerificado ? (
                   <span className="text-green-500 text-sm flex items-center gap-1 flex-shrink-0">
                     <CheckCircle size={10} /> Verificado
                   </span>
                 ) : (
-                  <span className="text-red-500 text-sm flex items-center gap-1 flex-shrink-0">
-                    <AlertCircle size={10} /> Não verificado
+                  <span
+                    onClick={async () => {
+                      try {
+                        await sendEmailVerification(auth.currentUser);
+
+                        setMensagem("E-mail de verificação reenviado com sucesso!");
+                        setErro("");
+                      } catch (e) {
+                        console.error("Erro ao reenviar e-mail:", e);
+                        setErro("Erro ao reenviar e-mail. Tente novamente.");
+                      }
+                    }}
+                    className="
+        text-red-500 
+        text-sm 
+        flex 
+        items-center 
+        gap-1 
+        flex-shrink-0 
+        cursor-pointer
+        hover:underline
+        hover:text-red-400
+      "
+                    title="Clique para reenviar o e-mail de verificação"
+                  >
+                    <AlertCircle size={10} />
+                    Não verificado - Reenviar link
                   </span>
                 )}
               </div>
+
 
 
               <div className="flex items-center text-white gap-2">
