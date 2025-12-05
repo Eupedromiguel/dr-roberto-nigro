@@ -13,9 +13,6 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 
 // -------------------------------------------------------------
 //   Essa página gerencia as ações vindas de links do Firebase:
-// - verifyEmail   → Verificar e-mail do usuário
-// - resetPassword → Redefinir senha
-// - recoverEmail  → Restaurar e-mail antigo
 // -------------------------------------------------------------
 export default function ActionHandler() {
   const [params] = useSearchParams();
@@ -34,6 +31,32 @@ export default function ActionHandler() {
   const isPasswordReset = mode === "resetPassword";
 
   const functions = getFunctions(undefined, "southamerica-east1");
+
+
+
+
+  async function confirmarRecoverEmail() {
+    try {
+      setStatus("loading");
+
+      await applyActionCode(auth, actionCode);
+
+      setStatus("success");
+      setMessage(
+        "E-mail restaurado com sucesso.\n\nSe você não reconhece esta ação, altere sua senha imediatamente."
+      );
+
+      const cleanUrl = window.location.origin + "/action-complete";
+      window.history.replaceState({}, document.title, cleanUrl);
+
+    } catch (err) {
+      console.error("Erro ao recuperar e-mail:", err);
+
+      setStatus("error");
+      setMessage("Este link já foi usado ou expirou.");
+    }
+  }
+
 
   // UseEffects  
 
@@ -185,6 +208,15 @@ export default function ActionHandler() {
             break;
 
 
+          // =====================================================
+          // Reverter troca de e-mail (segurança)
+          // =====================================================
+          case "recoverEmail":
+            setStatus("confirmRecover");
+            setMessage(
+              "Você solicitou reverter a troca de e-mail desta conta.\n\nDeseja realmente restaurar o e-mail anterior?"
+            );
+            break;
 
           // =====================================================
           // Ação inválida / não suportada
@@ -272,6 +304,36 @@ export default function ActionHandler() {
             </Button>
           </>
         )}
+
+        {status === "confirmRecover" && (
+          <>
+            <h3 className="text-lg font-semibold mb-4">Confirmar recuperação</h3>
+
+            <p className="whitespace-pre-line text-gray-700 mb-6">
+              {message}
+            </p>
+
+            <div className="flex gap-3">
+              <Button
+                className="w-full bg-gray-500"
+                onClick={() => {
+                  setStatus("error");
+                  setMessage("A operação foi cancelada.");
+                }}
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                className="w-full bg-red-600 hover:bg-red-700"
+                onClick={confirmarRecoverEmail}
+              >
+                Restaurar e-mail
+              </Button>
+            </div>
+          </>
+        )}
+
 
         {status === "error" && (
           <>
