@@ -211,7 +211,17 @@ exports.atualizarUsuario = onCall(async (request) => {
   }
 
   const uid = request.auth.uid;
-  const { nome, telefone, cpf, dataNascimento, sexoBiologico, role } = request.data || {};
+  const {
+    nome,
+    telefone,
+    cpf,
+    dataNascimento,
+    sexoBiologico,
+    email,
+    emailVerificado,
+    role,
+  } = request.data || {};
+
 
 
   if (typeof role !== "undefined") {
@@ -222,11 +232,38 @@ exports.atualizarUsuario = onCall(async (request) => {
   }
 
   const updates = {};
+
   if (typeof nome === "string") updates.nome = nome;
   if (typeof telefone === "string") updates.telefone = telefone;
   if (typeof cpf === "string") updates.cpf = cpf;
   if (typeof dataNascimento === "string") updates.dataNascimento = dataNascimento;
   if (typeof sexoBiologico === "string") updates.sexoBiologico = sexoBiologico;
+
+  // PERMITIR ALTERAÇÃO DE EMAIL SOMENTE SE VEIO DO FLUXO OFICIAL
+  if (typeof email === "string") {
+
+    if (emailVerificado !== true) {
+      throw new HttpsError(
+        "permission-denied",
+        "Alteração de e-mail permitida somente via confirmação por link."
+      );
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+      throw new HttpsError("invalid-argument", "E-mail inválido.");
+    }
+
+    updates.email = email;
+  }
+
+
+  // SINCRONIZAR ESTADO DE VERIFICAÇÃO
+  if (typeof emailVerificado === "boolean") {
+    updates.emailVerificado = emailVerificado;
+  }
+
   updates.atualizadoEm = admin.firestore.FieldValue.serverTimestamp();
 
   if (Object.keys(updates).length === 1) {
@@ -235,6 +272,7 @@ exports.atualizarUsuario = onCall(async (request) => {
       "Nenhum campo válido para atualização."
     );
   }
+
 
   try {
     console.log("Atualizando usuário:", uid, updates);

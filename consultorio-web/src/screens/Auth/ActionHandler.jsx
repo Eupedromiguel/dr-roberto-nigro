@@ -9,6 +9,7 @@ import {
 } from "firebase/auth";
 import { auth } from "../../services/firebase";
 import Button from "../../components/Button";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 // -------------------------------------------------------------
 //   Essa página gerencia as ações vindas de links do Firebase:
@@ -30,8 +31,11 @@ export default function ActionHandler() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
 
-  // Para sabermos se estamos no fluxo de redefinição de senha
   const isPasswordReset = mode === "resetPassword";
+
+  const functions = getFunctions(undefined, "southamerica-east1");
+
+  // UseEffects  
 
   useEffect(() => {
     async function handleAction() {
@@ -109,22 +113,60 @@ export default function ActionHandler() {
             try {
               console.log("Confirmando troca de e-mail...");
 
-              // aplica a alteração de e-mail
+              // Valida o código e obtém os dados do Firebase
+              const info = await checkActionCode(auth, actionCode);
+
+              // Aplica realmente a mudança no Auth
               await applyActionCode(auth, actionCode);
+
+              const novoEmail = info.data?.email;
+
+              if (!novoEmail) {
+                throw new Error("Firebase não retornou o novo e-mail.");
+              }
+
+              const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+              if (!emailRegex.test(novoEmail)) {
+                throw new Error("Firebase retornou e-mail inválido.");
+              }
+
+              console.log("E-mail confirmado:", novoEmail);
+
+              // Sincroniza Firestore
+              const atualizarUsuario = httpsCallable(functions, "usuarios-atualizarUsuario");
+
+              await atualizarUsuario({
+                email: novoEmail,
+                emailVerificado: true,
+              });
 
               setStatus("success");
               setMessage("E-mail alterado com sucesso! Faça login novamente.");
 
-              // Redirecionar após alguns segundos
               setTimeout(() => {
                 window.location.href = "/login";
               }, 15000);
+
             } catch (err) {
               console.error("Erro ao confirmar troca de e-mail:", err);
+
+              let mensagem = "Erro ao confirmar troca de e-mail.";
+
+              if (err.message?.includes("não retornou")) {
+                mensagem = "Não foi possível obter o e-mail confirmado pelo Firebase.";
+              } else if (err.message?.includes("inválido")) {
+                mensagem = "Firebase retornou um e-mail inválido.";
+              } else if (err.message?.toLowerCase().includes("permission")) {
+                mensagem = "Sem permissão para atualizar o banco de dados.";
+              }
+
               setStatus("error");
-              setMessage("Link inválido ou expirado para troca de e-mail.");
+              setMessage(mensagem);
             }
             break;
+
+
 
           // =====================================================
           // Ação inválida / não suportada
@@ -150,7 +192,7 @@ export default function ActionHandler() {
     }
   }, [mode, actionCode, continueUrl]);
 
-  
+
 
   // =============================================================
   // Interface visual

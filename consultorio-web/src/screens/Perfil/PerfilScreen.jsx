@@ -65,6 +65,21 @@ export default function PerfilScreen() {
     }
   }, []);
 
+
+  useEffect(() => {
+  if (!erroModal && !mensagemModal) return;
+
+  const timer = setTimeout(() => {
+    setErroModal("");
+    setMensagemModal("");
+  }, 3000);
+
+  return () => clearTimeout(timer);
+}, [erroModal, mensagemModal]);
+
+
+
+
   useEffect(() => {
     const carregar = async () => {
       if (!user) return;
@@ -247,89 +262,125 @@ export default function PerfilScreen() {
   }
 
 
-async function handleAtualizarEmail() {
-  try {
-    setErro("");
-    setMensagem("");
-    setErroModal("");
-    setMensagemModal("");
-    setSalvando(true);
+  async function handleAtualizarEmail() {
+    try {
+      setErro("");
+      setMensagem("");
+      setErroModal("");
+      setMensagemModal("");
+      setSalvando(true);
 
-    // Limpe o email no frontend também
-    const emailLimpo = novoEmail.trim().toLowerCase();
+      const emailLimpo = novoEmail.trim().toLowerCase();
 
-    if (!emailLimpo) {
-      setErroModal("Informe o novo e-mail.");
-      setSalvando(false);
-      return;
-    }
+      if (!emailLimpo) {
+        setErroModal("Informe o novo e-mail.");
+        setSalvando(false);
+        return;
+      }
 
-    // Valide o formato
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(emailLimpo)) {
-      setErroModal("Formato de e-mail inválido.");
-      setSalvando(false);
-      return;
-    }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    if (!senha.trim()) {
-      setErroModal("Digite sua senha para confirmar a alteração.");
-      setSalvando(false);
-      return;
-    }
+      if (!emailRegex.test(emailLimpo)) {
+        setErroModal("Formato de e-mail inválido.");
+        setSalvando(false);
+        return;
+      }
 
-    const currentUser = auth.currentUser;
+      if (!senha.trim()) {
+        setErroModal("Digite sua senha para confirmar a alteração.");
+        setSalvando(false);
+        return;
+      }
 
-    if (!currentUser?.email) {
-      setErroModal("Sessão inválida. Faça login novamente.");
-      setSalvando(false);
-      return;
-    }
+      const currentUser = auth.currentUser;
 
-    // Reautenticar usuário
-    const cred = EmailAuthProvider.credential(currentUser.email, senha);
-    await reauthenticateWithCredential(currentUser, cred).catch(() => {
-      throw new Error("Senha incorreta.");
-    });
+      if (!currentUser?.email) {
+        setErroModal("Sessão inválida. Faça login novamente.");
+        setSalvando(false);
+        return;
+      }
 
-    // Chamar Cloud Function
-    const solicitarTroca = httpsCallable(functions, "notificacoes-solicitarTrocaEmail");
+      // Validação extra: verificar se e-mail é diferente do atual
+      if (currentUser.email.toLowerCase() === emailLimpo) {
+        setErroModal("O novo e-mail deve ser diferente do atual.");
+        setSalvando(false);
+        return;
+      }
 
-    const res = await solicitarTroca({
-      novoEmail: emailLimpo, 
-    });
+      // Reautenticar usuário
+      const cred = EmailAuthProvider.credential(currentUser.email, senha);
 
-    if (res.data?.sucesso) {
-      setMensagemModal(
-        "Enviamos um link de confirmação ao novo e-mail. A alteração só será feita após a confirmação."
+      await reauthenticateWithCredential(currentUser, cred).catch(() => {
+        throw new Error("Senha incorreta.");
+      });
+
+      const solicitarTroca = httpsCallable(
+        functions,
+        "notificacoes-solicitarTrocaEmail"
       );
 
-      setNovoEmail("");
-      setSenha("");
-      setModo(null);
-      return;
-    }
+      const res = await solicitarTroca({
+        novoEmail: emailLimpo,
+      });
 
-    setErroModal("Falha ao solicitar troca de e-mail.");
-  } catch (e) {
-    const msg = e.message || "";
+      if (res.data?.sucesso) {
+        setMensagemModal(
+          "Enviamos um link de confirmação ao novo e-mail. A alteração só será feita após a confirmação."
+        );
 
-    if (msg.toLowerCase().includes("senha")) {
-      setErroModal("Senha incorreta.");
+        setNovoEmail("");
+        setSenha("");
+        setModo(null);
+        return;
+      }
+
+      setErroModal("Falha ao solicitar troca de e-mail.");
+    } catch (e) {
+      console.log("ERRO NA TROCA DE E-MAIL:", e);
+
+      const code = e.code || "";
+      const msg = e.message || "";
+
+      if (msg.toLowerCase().includes("senha incorreta")) {
+        setErroModal("Senha incorreta.");
+      }
+      // NOVO: E-mail já em uso
+      else if (
+        code === "functions/already-exists" ||
+        code === "already-exists"
+      ) {
+        setErroModal("Este e-mail já está em uso.");
+      }
+      // NOVO: E-mail igual ao atual
+      else if (
+        code === "functions/failed-precondition" ||
+        code === "failed-precondition"
+      ) {
+        setErroModal("O novo e-mail deve ser diferente do atual.");
+      }
+      // E-mail inválido
+      else if (
+        code === "functions/invalid-argument" ||
+        code === "invalid-argument" ||
+        msg.toLowerCase().includes("inválido")
+      ) {
+        setErroModal("Formato de e-mail inválido.");
+      }
+      // NOVO: Sessão expirada
+      else if (
+        code === "functions/unauthenticated" ||
+        code === "unauthenticated"
+      ) {
+        setErroModal("Sessão expirada. Faça login novamente.");
+      }
+      // Erro genérico
+      else {
+        setErroModal("Erro ao solicitar troca de e-mail.");
+      }
+    } finally {
+      setSalvando(false);
     }
-    else if (msg.includes("already-exists")) {
-      setErroModal("Este e-mail já está em uso.");
-    }
-    else if (msg.includes("invalid")) {
-      setErroModal("Formato de e-mail inválido.");
-    }
-    else {
-      setErroModal("Erro ao solicitar troca de e-mail.");
-    }
-  } finally {
-    setSalvando(false);
   }
-}
 
 
 

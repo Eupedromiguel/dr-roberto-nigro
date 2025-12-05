@@ -13,7 +13,7 @@ const firebaseConfig = {
   appId: "1:12007390383:web:19cc4d5b3763b1a469e85a",
 };
 
-// Inicializa o app
+
 const app = initializeApp(firebaseConfig);
 
 // Serviços Firebase
@@ -23,11 +23,10 @@ export const functions = getFunctions(app, "southamerica-east1");
 
 // Importante: garante que o reCAPTCHA funcione no navegador HTTPS
 if (typeof window !== "undefined") {
-  auth.languageCode = "pt-BR"; // SMS em português
+  auth.languageCode = "pt-BR"; 
 }
 
-// Adicione esta linha:
+
 export const authConfig = firebaseConfig;
 
-// Export default
 export default app;
