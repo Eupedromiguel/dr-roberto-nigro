@@ -203,7 +203,7 @@ exports.meuPerfil = onCall(async (request) => {
 
 
 // =====================================================
-// Atualizar usuário
+// Atualizar usuário 
 // =====================================================
 exports.atualizarUsuario = onCall(async (request) => {
   if (!request.auth) {
@@ -222,12 +222,18 @@ exports.atualizarUsuario = onCall(async (request) => {
     role,
   } = request.data || {};
 
-
-
   if (typeof role !== "undefined") {
     throw new HttpsError(
       "permission-denied",
       "Campo 'role' não pode ser alterado pelo cliente."
+    );
+  }
+
+  // BLOQUEIA qualquer tentativa de alterar email por esta função
+  if (typeof email !== "undefined" || typeof emailVerificado !== "undefined") {
+    throw new HttpsError(
+      "permission-denied",
+      "Alteração de e-mail deve ser feita através do link oficial enviado por email."
     );
   }
 
@@ -239,31 +245,6 @@ exports.atualizarUsuario = onCall(async (request) => {
   if (typeof dataNascimento === "string") updates.dataNascimento = dataNascimento;
   if (typeof sexoBiologico === "string") updates.sexoBiologico = sexoBiologico;
 
-  // PERMITIR ALTERAÇÃO DE EMAIL SOMENTE SE VEIO DO FLUXO OFICIAL
-  if (typeof email === "string") {
-
-    if (emailVerificado !== true) {
-      throw new HttpsError(
-        "permission-denied",
-        "Alteração de e-mail permitida somente via confirmação por link."
-      );
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailRegex.test(email)) {
-      throw new HttpsError("invalid-argument", "E-mail inválido.");
-    }
-
-    updates.email = email;
-  }
-
-
-  // SINCRONIZAR ESTADO DE VERIFICAÇÃO
-  if (typeof emailVerificado === "boolean") {
-    updates.emailVerificado = emailVerificado;
-  }
-
   updates.atualizadoEm = admin.firestore.FieldValue.serverTimestamp();
 
   if (Object.keys(updates).length === 1) {
@@ -272,7 +253,6 @@ exports.atualizarUsuario = onCall(async (request) => {
       "Nenhum campo válido para atualização."
     );
   }
-
 
   try {
     console.log("Atualizando usuário:", uid, updates);
@@ -370,9 +350,63 @@ exports.usuariosSyncRecoverEmail = onCall(async (request) => {
     const uid = userAuth.uid;
     console.log("Usuário encontrado:", { uid, email: userAuth.email });
 
-    // 2. Sincroniza Firestore com os dados do Auth
+    // 2. SEGURANÇA: Busca dados atuais no Firestore
     const docRef = admin.firestore().collection("usuarios").doc(uid);
-    
+    const docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      throw new HttpsError(
+        "not-found",
+        "Documento do usuário não encontrado no Firestore."
+      );
+    }
+
+    const firestoreData = docSnap.data();
+    const emailAtualFirestore = firestoreData.email;
+
+    console.log("Comparação:", {
+      emailFirestore: emailAtualFirestore,
+      emailAuth: userAuth.email,
+      emailRecebido: email
+    });
+
+    // 3. VALIDAÇÃO CRÍTICA: Só sincroniza se houve MUDANÇA REAL no Auth
+    // Isso previne ataques onde alguém tenta forçar a troca enviando emails aleatórios
+    if (emailAtualFirestore === userAuth.email) {
+      console.log("Emails já estão sincronizados. Nenhuma ação necessária.");
+      return {
+        success: true,
+        message: "Emails já sincronizados",
+        uid: uid,
+        email: userAuth.email
+      };
+    }
+
+    // 4. VALIDAÇÃO EXTRA: Verifica se o email do Auth corresponde ao solicitado
+    if (userAuth.email !== email) {
+      console.error("Email do Auth não corresponde ao solicitado:", {
+        esperado: email,
+        encontrado: userAuth.email
+      });
+      throw new HttpsError(
+        "failed-precondition",
+        "Email no Authentication não corresponde ao solicitado."
+      );
+    }
+
+    // 5. REGISTRO DE AUDITORIA: Salva log da mudança antes de aplicar
+    const logRef = admin.firestore().collection("logs_seguranca").doc();
+    await logRef.set({
+      tipo: "recuperacao_email",
+      uid: uid,
+      emailAnterior: emailAtualFirestore,
+      emailNovo: userAuth.email,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      ip: request.rawRequest?.ip || "unknown",
+      userAgent: request.rawRequest?.headers?.["user-agent"] || "unknown"
+    });
+
+    // 6. Sincroniza Firestore com os dados do Auth
     await docRef.set(
       {
         email: userAuth.email,
@@ -382,7 +416,7 @@ exports.usuariosSyncRecoverEmail = onCall(async (request) => {
       { merge: true }
     );
 
-    console.log("Campo 'emailVerificado' sincronizado no Firestore!");
+    console.log("Email sincronizado com sucesso no Firestore!");
 
     return {
       success: true,
@@ -405,6 +439,126 @@ exports.usuariosSyncRecoverEmail = onCall(async (request) => {
   }
 });
 
+// =====================================================
+// SINCRONIZAR E-MAIL APÓS ALTERAÇÃO
+// =====================================================
+
+exports.usuariosSyncChangeEmail = onCall(async (request) => {
+  const { email } = request.data;
+
+  // Validação
+  if (!email) {
+    throw new HttpsError(
+      "invalid-argument",
+      "E-mail não informado."
+    );
+  }
+
+  console.log("Iniciando sincronização de alteração para:", email);
+
+  try {
+    // 1. Busca o usuário pelo novo email no Auth
+    let userAuth;
+    try {
+      userAuth = await admin.auth().getUserByEmail(email);
+    } catch (error) {
+      console.error("Usuário não encontrado no Auth:", error);
+      throw new HttpsError(
+        "not-found",
+        "Usuário não encontrado no Authentication."
+      );
+    }
+
+    const uid = userAuth.uid;
+    console.log("Usuário encontrado:", { uid, email: userAuth.email });
+
+    // 2. SEGURANÇA: Busca dados atuais no Firestore
+    const docRef = admin.firestore().collection("usuarios").doc(uid);
+    const docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      throw new HttpsError(
+        "not-found",
+        "Documento do usuário não encontrado no Firestore."
+      );
+    }
+
+    const firestoreData = docSnap.data();
+    const emailAtualFirestore = firestoreData.email;
+
+    console.log("Comparação:", {
+      emailFirestore: emailAtualFirestore,
+      emailAuth: userAuth.email,
+      emailRecebido: email
+    });
+
+    // 3. VALIDAÇÃO CRÍTICA: Só sincroniza se houve MUDANÇA REAL no Auth
+    if (emailAtualFirestore === userAuth.email) {
+      console.log("Emails já estão sincronizados. Nenhuma ação necessária.");
+      return {
+        success: true,
+        message: "Emails já sincronizados",
+        uid: uid,
+        email: userAuth.email
+      };
+    }
+
+    // 4. VALIDAÇÃO EXTRA: Verifica se o email do Auth corresponde ao solicitado
+    if (userAuth.email !== email) {
+      console.error("Email do Auth não corresponde ao solicitado:", {
+        esperado: email,
+        encontrado: userAuth.email
+      });
+      throw new HttpsError(
+        "failed-precondition",
+        "Email no Authentication não corresponde ao solicitado."
+      );
+    }
+
+    // 5. REGISTRO DE AUDITORIA: Salva log da mudança
+    const logRef = admin.firestore().collection("logs_seguranca").doc();
+    await logRef.set({
+      tipo: "alteracao_email",
+      uid: uid,
+      emailAnterior: emailAtualFirestore,
+      emailNovo: userAuth.email,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      ip: request.rawRequest?.ip || "unknown",
+      userAgent: request.rawRequest?.headers?.["user-agent"] || "unknown"
+    });
+
+    // 6. Sincroniza Firestore com os dados do Auth
+    await docRef.set(
+      {
+        email: userAuth.email,
+        emailVerificado: userAuth.emailVerified,
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    );
+
+    console.log("Email alterado e sincronizado com sucesso no Firestore!");
+
+    return {
+      success: true,
+      uid: uid,
+      email: userAuth.email,
+      emailVerificado: userAuth.emailVerified
+    };
+
+  } catch (error) {
+    console.error("Erro ao sincronizar alteração:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError(
+      "internal",
+      "Erro ao processar alteração de e-mail."
+    );
+  }
+});
 
 
 

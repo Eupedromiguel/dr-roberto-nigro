@@ -100,67 +100,67 @@ export default function ActionHandler() {
 
 
   async function confirmarRecoverEmail() {
-  try {
-    setStatus("loading");
+    try {
+      setStatus("loading");
 
-    console.log("ActionCode recebido:", actionCode);
+      console.log("ActionCode recebido:", actionCode);
 
-    // 1. Valida o código (não aplica ainda)
-    const info = await checkActionCode(auth, actionCode);
+      // 1. Valida o código (não aplica ainda)
+      const info = await checkActionCode(auth, actionCode);
 
-    console.log("Info do checkActionCode (frontend):", info);
-    console.log("info.data:", info.data);
+      console.log("Info do checkActionCode (frontend):", info);
+      console.log("info.data:", info.data);
 
-    const emailRestaurado = info.data?.email;
-    const uid = info.data?.uid;
+      const emailRestaurado = info.data?.email;
+      const uid = info.data?.uid;
 
-    console.log("Dados extraídos:", { emailRestaurado, uid });
+      console.log("Dados extraídos:", { emailRestaurado, uid });
 
-    // Não precisa do uid no frontend, o backend vai obter
-    if (!emailRestaurado) {
-      throw new Error("E-mail não encontrado no link de recuperação.");
-    }
+      // Não precisa do uid no frontend, o backend vai obter
+      if (!emailRestaurado) {
+        throw new Error("E-mail não encontrado no link de recuperação.");
+      }
 
-    // 2. Aplica a reversão no Auth PRIMEIRO (no frontend)
-    console.log("Aplicando reversão no Auth...");
-    await applyActionCode(auth, actionCode);
-    console.log("Reversão aplicada com sucesso!");
+      // 2. Aplica a reversão no Auth PRIMEIRO (no frontend)
+      console.log("Aplicando reversão no Auth...");
+      await applyActionCode(auth, actionCode);
+      console.log("Reversão aplicada com sucesso!");
 
-    // 3. Agora envia para o backend sincronizar o Firestore
-    console.log("Sincronizando com Firestore...");
-    const sincronizarRecover = httpsCallable(
-      functions, 
-      "usuarios-usuariosSyncRecoverEmail"
-    );
+      // 3. Agora envia para o backend sincronizar o Firestore
+      console.log("Sincronizando com Firestore...");
+      const sincronizarRecover = httpsCallable(
+        functions,
+        "usuarios-usuariosSyncRecoverEmail"
+      );
 
-    await sincronizarRecover({
-      email: emailRestaurado  // Envia apenas o email restaurado
-    });
+      await sincronizarRecover({
+        email: emailRestaurado  // Envia apenas o email restaurado
+      });
 
-    console.log("Sincronização concluída!");
+      console.log("Sincronização concluída!");
 
-    // 4. Feedback
-    setStatus("success");
-    setMessage("E-mail restaurado e sincronizado com sucesso.");
+      // 4. Feedback
+      setStatus("success");
+      setMessage("E-mail restaurado e sincronizado com sucesso.");
 
-    // 5. Limpa URL
-    const cleanUrl = window.location.origin + "/action-complete";
-    window.history.replaceState({}, document.title, cleanUrl);
+      // 5. Limpa URL
+      const cleanUrl = window.location.origin + "/action-complete";
+      window.history.replaceState({}, document.title, cleanUrl);
 
-  } catch (err) {
-    console.error("Erro ao restaurar e-mail:", err);
-    setStatus("error");
-    
-    // Mensagens mais específicas
-    if (err.code === "auth/invalid-action-code") {
-      setMessage("Link inválido ou já utilizado.");
-    } else if (err.code === "auth/expired-action-code") {
-      setMessage("Link expirado. Solicite um novo.");
-    } else {
-      setMessage(err.message || "Erro ao restaurar o e-mail.");
+    } catch (err) {
+      console.error("Erro ao restaurar e-mail:", err);
+      setStatus("error");
+
+      // Mensagens mais específicas
+      if (err.code === "auth/invalid-action-code") {
+        setMessage("Link inválido ou já utilizado.");
+      } else if (err.code === "auth/expired-action-code") {
+        setMessage("Link expirado. Solicite um novo.");
+      } else {
+        setMessage(err.message || "Erro ao restaurar o e-mail.");
+      }
     }
   }
-}
 
 
 
@@ -251,18 +251,16 @@ export default function ActionHandler() {
 
 
           // =====================================================
-          // Mudar email
+          // Mudar email (funciona logado ou deslogado)
           // =====================================================
 
           case "verifyAndChangeEmail":
             try {
               console.log("Confirmando troca de e-mail...");
 
-              // Valida o código e obtém os dados do Firebase
+              // 1. Valida o código e obtém os dados do Firebase
               const info = await checkActionCode(auth, actionCode);
-
-              // Aplica realmente a mudança no Auth
-              await applyActionCode(auth, actionCode);
+              console.log("Info do checkActionCode:", info);
 
               const novoEmail = info.data?.email;
 
@@ -271,27 +269,34 @@ export default function ActionHandler() {
               }
 
               const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
               if (!emailRegex.test(novoEmail)) {
                 throw new Error("Firebase retornou e-mail inválido.");
               }
 
-              console.log("E-mail confirmado:", novoEmail);
+              console.log("E-mail validado:", novoEmail);
 
-              // Sincroniza Firestore
-              const atualizarUsuario = httpsCallable(functions, "usuarios-atualizarUsuario");
+              // 2. Aplica a mudança no Auth
+              await applyActionCode(auth, actionCode);
+              console.log("Mudança aplicada no Auth!");
 
-              await atualizarUsuario({
-                email: novoEmail,
-                emailVerificado: true,
+              // 3. Sincroniza Firestore usando função específica (não requer autenticação)
+              const sincronizarEmail = httpsCallable(
+                functions,
+                "usuarios-usuariosSyncChangeEmail"
+              );
+
+              await sincronizarEmail({
+                email: novoEmail
               });
+
+              console.log("Firestore sincronizado!");
 
               setStatus("success");
               setMessage("E-mail alterado com sucesso! Faça login novamente.");
 
               setTimeout(() => {
                 window.location.href = "/login";
-              }, 15000);
+              }, 5000);
 
             } catch (err) {
               console.error("Erro ao confirmar troca de e-mail:", err);
@@ -331,7 +336,7 @@ export default function ActionHandler() {
 
 
           // =====================================================
-          // Reverter troca de e-mail (segurança)
+          // Confirmar reverter troca de e-mail (segurança)
           // =====================================================
           case "recoverEmail":
             setStatus("confirmRecover");
