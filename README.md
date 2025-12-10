@@ -30,8 +30,8 @@ Embora o Firebase esteja avançando para a 2ª Geração, você pode ter funçõ
 * Cloud Functions v1 (AuthTriggers) us-central1
 
 - Node.js 18 
-- Firebase Admin v12.0.0 
-- Functions 4.8.0 
+- Firebase Functions v4.8.0
+- Firebase Admin v12.0.0  
 - Nodemailer 7.0.10 
 
 **Estrutura**
@@ -70,15 +70,64 @@ Funções de **1ª Geração (Node 20)** para eventos do Authentication.
 | Trigger            | Descrição                                                      |
 |--------------------|----------------------------------------------------------------|                                                 
 | **onUserCreated**  | Cria documento `usuarios/{uid}` e envia e-mail de verificação. | 
-| **onUserDeleted**  | Remove todos os dados vinculados ao usuário excluído.          |
+| **onUserDeleted**  | Remove os dados vinculados ao usuário e gera log com IP.       |
 
 -------------------------------------------------------------------------------------------------------------------------------
 
 **Funções v2**
 Funções de **2ª Geração (Node 22)** para eventos OnCall.
 
+Funções chamadas diretamente do frontend. Automaticamente verificam autenticação e validam Custom Claims.
+
+**Namespaces implementados:**
+- `usuarios.*` - Gerenciamento de usuários
+- `consultas.*` - Fluxo de agendamentos
+- `medicos.*` - Disponibilidade e slots
+- `admin.*` - Operações administrativas
+- `notificacoes.*` - Envio de emails
+- `health.ping` - Monitoramento
+
+**Como chamar do frontend:**
+```js
+const criarUsuario = httpsCallable(functions, "usuarios-criarUsuario");
+const resultado = await criarUsuario({ nome, cpf, telefone });
+```
+
+**Firestore Triggers**
+Funções assíncronas disparadas por mudanças no banco de dados.
+
+**Triggers implementados:**
+- `logAppointmentStatus` - Monitora mudanças de status em `appointments/{id}`
+
+---
+
+**Estrutura de Namespaces**
+
+As funções são organizadas em grupos lógicos (domínios):
+
+```
+functions/
+├── index.js                    # Entrypoint + setGlobalOptions
+└── handlers/
+    ├── usuarios.js             → exports.usuarios.*
+    ├── consultas.js            → exports.consultas.*
+    ├── medicos.js              → exports.medicos.*
+    ├── adminFunctions.js       → exports.admin.*
+    ├── notificacoes.js         → exports.notificacoes.*
+    └── relatorios.js           → exports.logAppointmentStatus
+```
+
+**Vantagens:**
+- Organização clara por domínio
+- Facilita manutenção e escalabilidade
+- Permite controle granular de permissões
+
+---
+
+**Handlers Implementados**
+
 `usuarios.js`
-Gerencia o ciclo de vida dos usuários.
+Gerencia o ciclo de vida completo dos usuários.
 
 | Função               | Descrição                                                                                     |
 |----------------------|-----------------------------------------------------------------------------------------------|
@@ -87,7 +136,6 @@ Gerencia o ciclo de vida dos usuários.
 | **deletarUsuario**   | Remove usuário do Auth e do Firestore.                                                        |
 | **validarDuplicatas**| Verificação de duplicidade usada antes do registro (sem precisar estar autenticado).          |
 | **meuPerfil**        | Retorna os dados do perfil do usuário autenticado.                                            |
-
 
 ---
 
@@ -102,7 +150,6 @@ Responsável pelos **horários disponíveis** dos médicos.
 | **listarMeusSlots**    | Retorna todos os slots criados pelo médico autenticado.                         |
 | **reativarSlot**       | Reabre um slot anteriormente cancelado.                                         |
 | **atualizarSlot**      | Permite ao médico editar um slot existente.                                     |
-
 
 ---
 
@@ -121,13 +168,84 @@ Gerencia o **fluxo de consultas** entre paciente e médico.
 ---
 
 `adminFunctions.js`
-Módulo administrativo responsável por todas as ações restritas a administradores: listar usuários, atribuir papéis, adicionar/alterar especialidade, foto e valor de consulta particular do médico.
+Módulo administrativo responsável por todas as ações restritas a administradores.
 
-| Função             | Descrição                                                                          |
-|--------------------|---------------------------------------------------------------------------------   |
-| **listarUsuarios** | Lista todos os usuários cadastrados na coleção usuarios                            |
-| **definirRole**    | Atualiza o custom claim no Authentication e o campo role no Firestore              |
+| Função               | Descrição                                                                          |
+|----------------------|------------------------------------------------------------------------------------|
+| **listarUsuarios**   | Lista todos os usuários cadastrados na coleção usuarios                            |
+| **definirRole**      | Atualiza o custom claim no Authentication e o campo role no Firestore              |
+| **removerUsuario**   | Remove usuário do Authentication e Firestore (apenas admins)                       |
 
+**Observação importante:**
+- `removerUsuario` é diferente de `deletarUsuario` (do handler `usuarios.js`)
+- `removerUsuario`: admin remove **qualquer usuário**
+- `deletarUsuario`: usuário remove **a própria conta**
+
+---
+
+`relatorios.js`
+Sistema automático de relatórios mensais via **Firestore Trigger**.
+
+| Trigger                   | Tipo                     | Descrição                                                                 |
+|---------------------------|--------------------------|---------------------------------------------------------------------------|
+| **logAppointmentStatus**  | onDocumentUpdated        | Monitora mudanças em `appointments/{id}` e grava relatórios mensais       |
+
+**Como funciona:**
+1. Dispara automaticamente quando uma consulta muda de status
+2. Se `status = "concluida"` → grava em `relatorios/appointments_done/{YYYY_MM}/{consultaId}`
+3. Se `status = "cancelada"` → grava em `relatorios/appointments_canceled/{YYYY_MM}/{consultaId}`
+4. Organiza por ano/mês para facilitar análises e dashboards
+
+**Campos gravados (concluída):**
+- `idConsulta`, `medicoId`, `pacienteId`
+- `dataConsulta`, `especialidade`, `valor`
+- `status: "concluida"`
+- `concludedBy` (quem concluiu)
+- `appointmentOriginalCreatedAt`, `createdAt`
+
+**Campos gravados (cancelada):**
+- `idConsulta`, `medicoId`, `pacienteId`
+- `dataConsulta`, `motivo` (cancelReason)
+- `status: "cancelada"`
+- `canceledBy` (patient | doctor | admin)
+- `appointmentOriginalCreatedAt`, `createdAt`
+
+**Estrutura no Firestore:**
+```
+relatorios/
+├── appointments_done/
+│   ├── 2025_01/
+│   │   └── {consultaId}
+│   ├── 2025_02/
+│   │   └── {consultaId}
+│   └── 2025_03/
+│       └── {consultaId}
+└── appointments_canceled/
+    ├── 2025_01/
+    │   └── {consultaId}
+    ├── 2025_02/
+    │   └── {consultaId}
+    └── 2025_03/
+        └── {consultaId}
+```
+
+**Consultar relatórios (exemplo):**
+```js
+// Buscar todas as consultas concluídas em janeiro/2025
+const snapshot = await db
+  .collection('relatorios')
+  .doc('appointments_done')
+  .collection('2025_01')
+  .get();
+
+const consultas = snapshot.docs.map(doc => ({
+  id: doc.id,
+  ...doc.data()
+}));
+
+// Calcular total faturado no mês
+const totalFaturado = consultas.reduce((sum, c) => sum + (c.valor || 0), 0);
+```
 
 ---
 
@@ -142,8 +260,40 @@ Módulo central para envio de e-mails via **Nodemailer**.
 | **sendPasswordChangedAlert(email)**             | Envia alerta de segurança confirmando que a senha foi alterada com sucesso|
 | **sendPhoneChangedAlert(email, novoTelefone)**  | Envia aviso de que o telefone foi atualizado.                             |
 
+**Variáveis de ambiente (secrets):**
 
-**Variáveis de ambiente:**
+```bash
+firebase functions:secrets:set EMAIL_USER
+firebase functions:secrets:set EMAIL_PASS
+```
+
+**Observação:** Essas funções são chamadas internamente por outras Cloud Functions. Não são expostas diretamente ao frontend.
+
+---
+
+`health.ping`
+Função de monitoramento para validar se as Cloud Functions estão operacionais.
+
+| Função   | Descrição                                                    |
+|----------|--------------------------------------------------------------|
+| **ping** | Retorna `{ ok: true, ts: timestamp }` se o backend está ativo |
+
+**Uso:**
+```js
+const ping = httpsCallable(functions, "health-ping");
+const { data } = await ping();
+console.log(data); // { ok: true, ts: 1704825600000 }
+```
+
+**Útil para:**
+- Monitoramento de disponibilidade
+- Testes de integração
+- Validar deploy bem-sucedido
+- Health checks em sistemas de CI/CD
+
+-------------------------------------------------------------------------------------------------------------------------------
+
+# Variáveis de ambiente:
 
 ``` bash
 firebase functions:secrets:set EMAIL_USER

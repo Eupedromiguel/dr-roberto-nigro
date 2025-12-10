@@ -3,7 +3,7 @@ import { getAuth } from "firebase/auth";
 import { getFunctions } from "firebase/functions";
 import { getFirestore } from "firebase/firestore";
 
-// Configuração correta do seu projeto Firebase
+
 const firebaseConfig = {
   apiKey: "AIzaSyA9lwRqT75rnvasTDZPYYurwjVJf8wQcnI",
   authDomain: "consultorio-app-2156a.web.app",
