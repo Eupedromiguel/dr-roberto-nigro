@@ -23,7 +23,7 @@ export const functions = getFunctions(app, "southamerica-east1");
 
 // Importante: garante que o reCAPTCHA funcione no navegador HTTPS
 if (typeof window !== "undefined") {
-  auth.languageCode = "pt-BR"; 
+  auth.languageCode = "pt-BR";
 }
 
 

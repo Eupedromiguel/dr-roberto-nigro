@@ -99,15 +99,19 @@ export default function PerfilScreen() {
       setEmailVerificado(verificado);
 
 
-      /// (Opcional) Atualiza também no Firestore se acabou de verificar
+      /// Atualiza também no Firestore se acabou de verificar
       if (verificado) {
         try {
           const atualizar = httpsCallable(functions, "usuarios-atualizarUsuario");
           await atualizar({ emailVerificado: true });
         } catch (e) {
-          // Ignora apenas o erro esperado (campo não aceito)
-          if (!e.message.includes("Nenhum campo válido")) {
-            console.warn("Falha real ao sincronizar emailVerificado no Firestore:", e.message);
+          // Ignora erros esperados (campo não aceito ou já sincronizado)
+          if (
+            !e.message.includes("Nenhum campo válido") &&
+            !e.code?.includes("permission-denied") &&
+            !e.code?.includes("failed-precondition")
+          ) {
+            console.warn("Falha ao sincronizar emailVerificado no Firestore:", e.message);
           }
         }
       }
@@ -218,10 +222,6 @@ export default function PerfilScreen() {
 
   }
 
-  function telefoneSomenteNumeros(telefone) {
-    return telefone.replace(/\D/g, "")
-  }
-
 
 
 
@@ -238,13 +238,26 @@ async function handleEnviarCodigoTelefone() {
     setMensagemModal("")
     setSalvando(true)
 
-    if (!senha.trim()) {
-      setErroModal("Digite sua senha para confirmar.")
+    const telefoneLimpo = novoTelefone.trim().replace(/\D/g, "")
+
+    // Validação 1: Campo vazio
+    if (!telefoneLimpo) {
+      setErroModal("Informe o novo telefone.")
+      setSalvando(false)
       return
     }
 
-    if (!novoTelefone.trim()) {
-      setErroModal("Informe o novo telefone.")
+    // Validação 2: Formato e tamanho (DDD + 9 dígitos)
+    if (telefoneLimpo.length !== 11) {
+      setErroModal("Digite um telefone válido com DDD e 9 dígitos.")
+      setSalvando(false)
+      return
+    }
+
+    // Validação 3: Senha
+    if (!senha.trim()) {
+      setErroModal("Digite sua senha para confirmar.")
+      setSalvando(false)
       return
     }
 
@@ -252,6 +265,7 @@ async function handleEnviarCodigoTelefone() {
 
     if (!currentUser?.email) {
       setErroModal("Sessão inválida. Faça login novamente.")
+      setSalvando(false)
       return
     }
 
@@ -265,7 +279,6 @@ async function handleEnviarCodigoTelefone() {
 
     const provider = new PhoneAuthProvider(auth)
 
-    const telefoneLimpo = telefoneSomenteNumeros(novoTelefone)
     const telefoneFormatado = `+55${telefoneLimpo}`
 
     const recaptcha = await initRecaptchaTelefone()
@@ -393,11 +406,11 @@ async function handleEnviarCodigoTelefone() {
       // Atualiza telefone no Firebase Auth
       await updatePhoneNumber(currentUser, credential)
 
-      // Atualiza telefone no Firestore
-      const atualizar = httpsCallable(functions, "usuarios-atualizarUsuario")
+      // Atualiza telefone no Firestore usando a função segura
+      const trocarTel = httpsCallable(functions, "usuarios-trocarTelefone")
 
-      await atualizar({
-        telefone: novoTelefone
+      await trocarTel({
+        novoTelefone: novoTelefone
       })
 
       setModo("telefoneSucesso")
@@ -410,20 +423,33 @@ async function handleEnviarCodigoTelefone() {
       await carregarPerfil()
 
     } catch (error) {
-      console.error(error)
+      console.error("Erro ao confirmar telefone:", error)
 
       let mensagem = "Erro ao confirmar telefone."
 
+      // Erros do Firebase Auth (SMS) - mais claros
       if (error.code === "auth/invalid-verification-code") {
         mensagem = "Código inválido."
-      }
-
-      if (error.code === "auth/code-expired") {
+      } else if (error.code === "auth/code-expired") {
         mensagem = "Código expirado. Solicite novamente."
-      }
-
-      if (error.code === "auth/requires-recent-login") {
+      } else if (error.code === "auth/requires-recent-login") {
         mensagem = "Sua sessão expirou. Faça login novamente."
+      } else if (error.code === "auth/account-exists-with-different-credential") {
+        mensagem = "Este telefone já está cadastrado em outra conta."
+      }
+      // Erros da Cloud Function (backend)
+      else if (error.code === "functions/already-exists") {
+        mensagem = "Este telefone já está cadastrado."
+      } else if (error.code === "functions/failed-precondition") {
+        mensagem = "Telefone não verificado. Complete a verificação SMS primeiro."
+      } else if (error.code === "functions/unauthenticated") {
+        mensagem = "Sessão expirada. Faça login novamente."
+      } else if (error.code === "functions/internal") {
+        mensagem = "Erro no servidor. Tente novamente em alguns instantes."
+      }
+      // Mensagem mais clara para erros não mapeados
+      else if (error.message) {
+        mensagem = `Erro: ${error.message}`
       }
 
       setErroModal(mensagem)

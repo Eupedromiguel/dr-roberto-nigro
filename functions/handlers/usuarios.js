@@ -230,20 +230,43 @@ exports.atualizarUsuario = onCall(async (request) => {
   }
 
   // BLOQUEIA qualquer tentativa de alterar email por esta função
-  if (typeof email !== "undefined" || typeof emailVerificado !== "undefined") {
+  if (typeof email !== "undefined") {
     throw new HttpsError(
       "permission-denied",
       "Alteração de e-mail deve ser feita através do link oficial enviado por email."
     );
   }
 
+  // BLOQUEIA qualquer tentativa de alterar telefone por esta função
+  if (typeof telefone !== "undefined") {
+    throw new HttpsError(
+      "permission-denied",
+      "Alteração de telefone deve ser feita através da função trocarTelefone com verificação SMS."
+    );
+  }
+
   const updates = {};
 
   if (typeof nome === "string") updates.nome = nome;
-  if (typeof telefone === "string") updates.telefone = telefone;
   if (typeof cpf === "string") updates.cpf = cpf;
   if (typeof dataNascimento === "string") updates.dataNascimento = dataNascimento;
   if (typeof sexoBiologico === "string") updates.sexoBiologico = sexoBiologico;
+
+  // Permite atualizar emailVerificado (mas não o email em si)
+  if (typeof emailVerificado === "boolean") {
+    // SEGURANÇA: Valida se o email está realmente verificado no Auth
+    if (emailVerificado === true) {
+      const userRecord = await admin.auth().getUser(uid);
+      if (userRecord.emailVerified) {
+        updates.emailVerificado = true;
+      } else {
+        throw new HttpsError(
+          "failed-precondition",
+          "E-mail não está verificado no Authentication."
+        );
+      }
+    }
+  }
 
   updates.atualizadoEm = admin.firestore.FieldValue.serverTimestamp();
 
@@ -327,7 +350,7 @@ exports.usuariosSyncRecoverEmail = onCall(async (request) => {
   // Validação
   if (!email) {
     throw new HttpsError(
-      "invalid-argument", 
+      "invalid-argument",
       "E-mail não informado."
     );
   }
@@ -427,11 +450,11 @@ exports.usuariosSyncRecoverEmail = onCall(async (request) => {
 
   } catch (error) {
     console.error("Erro ao sincronizar recuperação:", error);
-    
+
     if (error instanceof HttpsError) {
       throw error;
     }
-    
+
     throw new HttpsError(
       "internal",
       "Erro ao processar recuperação de e-mail."
@@ -557,6 +580,94 @@ exports.usuariosSyncChangeEmail = onCall(async (request) => {
       "internal",
       "Erro ao processar alteração de e-mail."
     );
+  }
+});
+
+// =====================================================
+// Mudar telefone
+// =====================================================
+
+exports.trocarTelefone = onCall(async (request) => {
+  // 1. Validar autenticação
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Usuário não autenticado");
+  }
+
+  const uid = request.auth.uid;
+  const { novoTelefone } = request.data;
+
+  console.log("Solicitação de troca de telefone:", { uid, novoTelefone });
+
+  // 2. Validar formato
+  if (!novoTelefone || typeof novoTelefone !== "string") {
+    throw new HttpsError("invalid-argument", "Telefone inválido");
+  }
+
+  try {
+    // 3. Verificar se o telefone foi REALMENTE vinculado no Auth
+    const userRecord = await admin.auth().getUser(uid);
+
+    // Formata o telefone recebido para o formato do Auth (+55XXXXXXXXXXX)
+    const telefoneFormatado = "+55" + novoTelefone.replace(/\D/g, "");
+
+    console.log("Comparação de telefones:", {
+      authPhone: userRecord.phoneNumber,
+      telefoneFormatado: telefoneFormatado,
+      novoTelefone: novoTelefone
+    });
+
+    // Validação crítica: o telefone no Auth deve corresponder
+    if (userRecord.phoneNumber !== telefoneFormatado) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Telefone não verificado no Authentication. Complete a verificação SMS primeiro."
+      );
+    }
+
+    // 4. Verificar duplicatas no Firestore
+    const existente = await db
+      .collection("usuarios")
+      .where("telefone", "==", novoTelefone)
+      .get();
+
+    if (!existente.empty) {
+      const duplicado = existente.docs.some(doc => doc.id !== uid);
+      if (duplicado) {
+        throw new HttpsError("already-exists", "Telefone já cadastrado");
+      }
+    }
+
+    // 5. Log de auditoria
+    await db.collection("logs_seguranca").add({
+      tipo: "troca_telefone",
+      uid,
+      telefoneNovo: novoTelefone,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      ip: request.rawRequest?.ip || "unknown"
+    });
+
+    // 6. Atualizar Firestore
+    await db.collection("usuarios").doc(uid).set(
+      {
+        telefone: novoTelefone,
+        telefoneVerificadoEm: admin.firestore.FieldValue.serverTimestamp(),
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    );
+
+    console.log("Telefone atualizado com sucesso:", uid);
+
+    return { sucesso: true };
+
+  } catch (error) {
+    console.error("Erro ao trocar telefone:", error);
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", "Erro ao atualizar telefone");
   }
 });
 
