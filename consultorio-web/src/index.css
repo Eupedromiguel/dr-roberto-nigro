@@ -199,8 +199,7 @@ input[type="time"] {
   .mobile-header,
   .bg-gray-800,
   .fixed:not(.print-container *),
-  .sticky:not(.print-container *),
-  .print\\:hidden {
+  .sticky:not(.print-container *) {
     display: none !important;
   }
 
