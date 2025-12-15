@@ -607,7 +607,48 @@ export default function RelatoriosScreen() {
       alert("Não há dados para exportar.");
       return;
     }
-    window.print();
+
+    setLoadingExport(true);
+
+    // Pequeno delay para garantir que o navegador renderize o estado de loading
+    setTimeout(() => {
+      try {
+        // Força o navegador a completar o layout antes de imprimir
+        // Isso melhora a performance no Mac/Safari
+        requestAnimationFrame(() => {
+          // Registra listeners para quando o diálogo fechar
+          const beforePrintHandler = () => {
+            // Quando o diálogo abrir, não faz nada
+          };
+
+          const afterPrintHandler = () => {
+            // Quando o diálogo fechar, remove loading
+            setLoadingExport(false);
+            // Limpa os listeners
+            window.removeEventListener('beforeprint', beforePrintHandler);
+            window.removeEventListener('afterprint', afterPrintHandler);
+          };
+
+          // Adiciona listeners
+          window.addEventListener('beforeprint', beforePrintHandler);
+          window.addEventListener('afterprint', afterPrintHandler);
+
+          // Abre o diálogo de impressão
+          window.print();
+
+          // Fallback: Se os eventos não funcionarem (Safari antigo), remove após 2s
+          setTimeout(() => {
+            setLoadingExport(false);
+            window.removeEventListener('beforeprint', beforePrintHandler);
+            window.removeEventListener('afterprint', afterPrintHandler);
+          }, 2000);
+        });
+      } catch (e) {
+        console.error("Erro ao imprimir:", e);
+        setLoadingExport(false);
+        alert("Erro ao gerar PDF. Tente novamente.");
+      }
+    }, 100);
   }
 
   // ======================================
@@ -1210,9 +1251,10 @@ export default function RelatoriosScreen() {
             </button>
             <button
               onClick={exportarPDF}
-              className="px-4 py-2 rounded-md bg-gray-800 text-white text-sm font-medium hover:bg-yellow-400"
+              disabled={loadingExport}
+              className="px-4 py-2 rounded-md bg-gray-800 text-white text-sm font-medium hover:bg-yellow-400 disabled:opacity-60"
             >
-              Imprimir / PDF
+              {loadingExport ? "Preparando exportação..." : "Imprimir / PDF"}
             </button>
           </div>
         </div>

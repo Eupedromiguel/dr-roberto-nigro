@@ -421,9 +421,18 @@ export default function AgendarScreen() {
   // ================================
   if (medicoSelecionado && !diaSelecionado) {
     const medico = medicosInfo[medicoSelecionado];
-    const hoje = new Date();
+    const agora = new Date();
+
+    // Filtra dias que tenham pelo menos 1 horário futuro disponível
     const diasOrdenados = Object.keys(slotsPorMedico[medicoSelecionado])
-      .filter((d) => new Date(d) >= hoje)
+      .filter((data) => {
+        // Para cada dia, verifica se tem algum horário futuro
+        const slotsNoDia = slotsPorMedico[medicoSelecionado][data];
+        return slotsNoDia.some((slot) => {
+          const dataSlot = new Date(`${slot.data}T${slot.hora}:00`);
+          return dataSlot >= agora;
+        });
+      })
       .sort((a, b) => new Date(a) - new Date(b));
 
     return (
@@ -458,7 +467,10 @@ export default function AgendarScreen() {
 
                 <p className="text-sm text-slate-500 mt-1">
                   {
-                    slotsPorMedico[medicoSelecionado][data].length
+                    slotsPorMedico[medicoSelecionado][data].filter((slot) => {
+                      const dataSlot = new Date(`${slot.data}T${slot.hora}:00`);
+                      return dataSlot >= agora;
+                    }).length
                   }{" "}
                   horário(s) disponível(is)
                 </p>

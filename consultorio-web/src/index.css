@@ -24,93 +24,170 @@ input[type="time"] {
 
 
 /* ESTILIZAÇÃO DE PDF PARA RELATÓRIO */
-
-/* ============================
-   ESTILO PROFISSIONAL PARA PDF
-   ============================ */
-
 /* ===== AJUSTES PARA CABER EM 1 PÁGINA ===== */
 
 @media print {
-
-  /* Reduz escala global */
-  body {
-    zoom: 85%;
+  /* Reset e configurações base */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
 
-  /* CORREÇÃO PARA MAC / SAFARI */
-  @supports not (zoom: 1) {
-    body {
-      transform: scale(0.85);
-      transform-origin: top left;
-      width: 118%;
-    }
+  @page {
+    size: A4 landscape;
+    margin: 10mm 8mm;
+  }
+
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+  }
+
+  /* Container principal */
+  .print-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
   }
 
   /* Compactar dashboard */
   .print-dashboard {
+    display: grid !important;
     grid-template-columns: repeat(5, 1fr) !important;
-    gap: 4px !important;
+    gap: 3px !important;
     margin-bottom: 6px !important;
+    page-break-inside: avoid !important;
   }
 
   .print-card {
-    padding: 4px !important;
-    font-size: 9px !important;
+    padding: 3px 5px !important;
+    font-size: 8px !important;
     min-height: auto !important;
+    border-width: 1px !important;
   }
 
-  .print-card strong {
-    font-size: 14px !important;
+  .print-card p:first-child {
+    font-size: 7px !important;
+    margin-bottom: 2px !important;
+  }
+
+  .print-card p:nth-child(2) {
+    font-size: 13px !important;
+    margin: 0 !important;
+  }
+
+  .print-card p:nth-child(3),
+  .print-card p:nth-child(4) {
+    font-size: 7px !important;
     margin-top: 2px !important;
   }
 
-  /* Títulos menores */
+  /* Títulos */
   h1 {
-    font-size: 16px !important;
-    margin-bottom: 4px !important;
-    padding-bottom: 2px !important;
+    font-size: 14px !important;
+    margin: 0 0 4px 0 !important;
+    padding: 0 !important;
   }
 
   h2 {
-    font-size: 12px !important;
-    margin-top: 6px !important;
-    padding-bottom: 2px !important;
+    font-size: 11px !important;
+    margin: 8px 0 4px 0 !important;
+    padding: 0 !important;
+  }
+
+  h3 {
+    font-size: 10px !important;
+    margin: 4px 0 2px 0 !important;
   }
 
   .print-subtitle {
-    font-size: 10px !important;
-    margin-bottom: 6px !important;
+    font-size: 9px !important;
+    margin-bottom: 4px !important;
   }
 
-  /* Tabelas mais compactas */
+  /* Tabelas compactas e responsivas */
   table {
-    font-size: 9px !important;
-    margin-top: 4px !important;
+    width: 100% !important;
+    font-size: 7.5px !important;
+    margin: 4px 0 !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tbody {
+    display: table-row-group !important;
   }
 
   th,
   td {
-    padding: 2px !important;
+    padding: 1.5px 3px !important;
+    border: 0.5px solid #ddd !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
   }
 
-  /* Barras de progresso menores */
-  .h-2 {
-    height: 4px !important;
+  th {
+    font-size: 7px !important;
+    font-weight: 600 !important;
   }
 
-  /* Remove espaços extras */
-  .print-container {
-    margin-top: 0 !important;
-    padding-top: 0 !important;
-  }
-
-  /* Evita quebra no meio */
-  .avoid-break {
+  tr {
     page-break-inside: avoid !important;
+    page-break-after: auto !important;
   }
 
-  /* ESCONDE TOPO / NAVBAR */
+  /* Gráficos */
+  .grid {
+    gap: 4px !important;
+  }
+
+  .p-4 {
+    padding: 6px !important;
+  }
+
+  .space-y-2 > * + * {
+    margin-top: 3px !important;
+  }
+
+  .space-y-1 > * + * {
+    margin-top: 2px !important;
+  }
+
+  /* Barras de progresso */
+  .h-2 {
+    height: 3px !important;
+  }
+
+  .h-1\.5,
+  .h-1 {
+    height: 2px !important;
+  }
+
+  /* Evita quebras inadequadas */
+  .avoid-break,
+  .print-dashboard,
+  .print-card {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Permite quebra entre tabelas */
+  .overflow-x-auto {
+    overflow: visible !important;
+    page-break-inside: auto !important;
+  }
+
+  /* ESCONDE elementos não essenciais */
   header,
   nav,
   .navbar,
@@ -120,9 +197,67 @@ input[type="time"] {
   .sidebar,
   .hamburger,
   .mobile-header,
-  .fixed,
-  .sticky {
+  .bg-gray-800,
+  .fixed:not(.print-container *),
+  .sticky:not(.print-container *),
+  .print\\:hidden {
     display: none !important;
   }
 
+  /* Força esconder qualquer elemento de navegação */
+  nav[class*="bg-gray"] {
+    display: none !important;
+  }
+
+  /* Ajustes finais de espaçamento */
+  .mb-2,
+  .my-2 {
+    margin-bottom: 4px !important;
+  }
+
+  .mt-2,
+  .my-2 {
+    margin-top: 4px !important;
+  }
+
+  .gap-2 {
+    gap: 3px !important;
+  }
+
+  .gap-3 {
+    gap: 4px !important;
+  }
+
+  /* Força cores */
+  .bg-green-50,
+  .bg-red-50,
+  .bg-violet-50,
+  .bg-indigo-50,
+  .bg-emerald-50,
+  .bg-slate-50 {
+    background-color: #f9fafb !important;
+  }
+
+  .text-green-900,
+  .text-red-900,
+  .text-violet-900,
+  .text-indigo-900,
+  .text-emerald-900,
+  .text-slate-900,
+  .text-gray-950,
+  .text-gray-800 {
+    color: #111827 !important;
+  }
+
+  /* Bordas visíveis */
+  .border {
+    border-width: 1px !important;
+    border-color: #d1d5db !important;
+  }
+
+  .rounded-xl,
+  .rounded-lg,
+  .rounded-md {
+    border-radius: 4px !important;
+  }
 }

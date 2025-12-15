@@ -7,7 +7,8 @@ import {
   sendEmailVerification,
   PhoneAuthProvider,
   updatePhoneNumber,
-  RecaptchaVerifier
+  RecaptchaVerifier,
+  updatePassword
 } from "firebase/auth";
 import { useAuth } from "../../context/AuthContext";
 import { Link } from "react-router-dom";
@@ -37,6 +38,10 @@ export default function PerfilScreen() {
   const [codigoSMS, setCodigoSMS] = useState("")
   const [verificationId, setVerificationId] = useState("")
   const [stepTelefone, setStepTelefone] = useState("telefone")
+  const [novaSenha, setNovaSenha] = useState("")
+  const [confirmarNovaSenha, setConfirmarNovaSenha] = useState("")
+  const [mostrarNovaSenha, setMostrarNovaSenha] = useState(false)
+  const [mostrarConfirmarNovaSenha, setMostrarConfirmarNovaSenha] = useState(false)
   const [formData, setFormData] = useState({
     nome: "",
     telefone: "",
@@ -501,8 +506,11 @@ async function handleEnviarCodigoTelefone() {
 
       const atualizar = httpsCallable(functions, "usuarios-atualizarUsuario");
       const res = await atualizar({
-        ...formData,
+        nome: formData.nome,
+        cpf: formData.cpf,
         dataNascimento: dataParaISO(formData.dataNascimento),
+        sexoBiologico: formData.sexoBiologico,
+        // telefone NÃO deve ser enviado aqui - usa trocarTelefone com SMS
       });
 
       if (res.data?.sucesso) {
@@ -653,6 +661,94 @@ async function handleEnviarCodigoTelefone() {
   }
 
 
+  async function handleAlterarSenha() {
+    try {
+      setErroModal("");
+      setMensagemModal("");
+      setSalvando(true);
+
+      // Validação: senha atual não vazia
+      if (!senha.trim()) {
+        setErroModal("Digite sua senha atual.");
+        setSalvando(false);
+        return;
+      }
+
+      // Validação: nova senha não vazia
+      if (!novaSenha.trim()) {
+        setErroModal("Digite a nova senha.");
+        setSalvando(false);
+        return;
+      }
+
+      // Validação: tamanho mínimo
+      if (novaSenha.length < 6) {
+        setErroModal("A nova senha deve ter no mínimo 6 caracteres.");
+        setSalvando(false);
+        return;
+      }
+
+      // Validação: senha diferente da atual
+      if (senha === novaSenha) {
+        setErroModal("A nova senha deve ser diferente da senha atual.");
+        setSalvando(false);
+        return;
+      }
+
+      // Validação: confirmação de senha
+      if (novaSenha !== confirmarNovaSenha) {
+        setErroModal("As senhas não coincidem.");
+        setSalvando(false);
+        return;
+      }
+
+      const currentUser = auth.currentUser;
+
+      if (!currentUser?.email) {
+        setErroModal("Sessão inválida. Faça login novamente.");
+        setSalvando(false);
+        return;
+      }
+
+      // Reautenticar
+      const cred = EmailAuthProvider.credential(currentUser.email, senha);
+
+      await reauthenticateWithCredential(currentUser, cred).catch(() => {
+        throw new Error("Senha incorreta.");
+      });
+
+      // Atualizar senha no Firebase Auth
+      await updatePassword(currentUser, novaSenha);
+
+      // Sucesso
+      setModo("senhaSucesso");
+      setSenha("");
+      setNovaSenha("");
+      setConfirmarNovaSenha("");
+
+    } catch (error) {
+      console.error("Erro ao alterar senha:", error);
+
+      // Mapeamento de erros
+      if (error.message.includes("Senha incorreta")) {
+        setErroModal("Senha atual incorreta.");
+      } else if (
+        error.code === "auth/wrong-password" ||
+        error.code === "auth/invalid-credential"
+      ) {
+        setErroModal("Senha atual incorreta.");
+      } else if (error.code === "auth/weak-password") {
+        setErroModal("A nova senha é muito fraca.");
+      } else if (error.code === "auth/requires-recent-login") {
+        setErroModal("Sessão expirada. Faça login novamente.");
+      } else {
+        setErroModal("Erro ao alterar senha. Tente novamente.");
+      }
+
+    } finally {
+      setSalvando(false);
+    }
+  }
 
 
   async function handleExcluirConta() {
@@ -927,6 +1023,17 @@ async function handleEnviarCodigoTelefone() {
         <Button
           className="bg-gray-800 hover:bg-gray-900 text-white flex items-center justify-center gap-1 px-3 py-1.5 rounded text-xs"
           onClick={() => {
+            setErro("");
+            setMensagem("");
+            setErroModal("");
+            setMensagemModal("");
+            setSenha("");
+            setNovaSenha("");
+            setConfirmarNovaSenha("");
+            setMostrarSenha(false);
+            setMostrarNovaSenha(false);
+            setMostrarConfirmarNovaSenha(false);
+            setModo("senha");
           }}
         >
           <Lock size={14} />
@@ -963,7 +1070,7 @@ async function handleEnviarCodigoTelefone() {
 
 
       {/* Modal principal */}
-      {modo && modo !== "excluido" && modo !== "emailSucesso" && (
+      {modo && modo !== "excluido" && modo !== "emailSucesso" && modo !== "telefoneSucesso" && modo !== "senhaSucesso" && (
 
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999]">
           <div className="bg-white rounded-lg shadow-xl p-6 w-80 relative">
@@ -972,6 +1079,7 @@ async function handleEnviarCodigoTelefone() {
               {modo === "email" && "Atualizar e-mail"}
               {modo === "excluir" && "Excluir Conta"}
               {modo === "telefone" && "Mudar telefone"}
+              {modo === "senha" && "Alterar senha"}
             </h3>
 
             {erroModal && (
@@ -1234,6 +1342,73 @@ async function handleEnviarCodigoTelefone() {
             )}
 
 
+            {/* Alterar senha */}
+            {modo === "senha" && (
+              <div className="space-y-3">
+                <label className="block text-sm text-gray-700 relative">
+                  Senha atual:
+                  <input
+                    type={mostrarSenha ? "text" : "password"}
+                    value={senha}
+                    onChange={(e) => setSenha(e.target.value)}
+                    className="w-full border border-gray-500 rounded px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    placeholder="Digite sua senha atual"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMostrarSenha((v) => !v)}
+                    className="absolute right-3 top-[33px] text-gray-500 hover:text-gray-700"
+                  >
+                    {mostrarSenha ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </label>
+
+                <label className="block text-sm text-gray-700 relative">
+                  Nova senha:
+                  <input
+                    type={mostrarNovaSenha ? "text" : "password"}
+                    value={novaSenha}
+                    onChange={(e) => setNovaSenha(e.target.value)}
+                    className="w-full border border-gray-500 rounded px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    placeholder="Mínimo 6 caracteres"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMostrarNovaSenha((v) => !v)}
+                    className="absolute right-3 top-[33px] text-gray-500 hover:text-gray-700"
+                  >
+                    {mostrarNovaSenha ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </label>
+
+                <label className="block text-sm text-gray-700 relative">
+                  Confirmar nova senha:
+                  <input
+                    type={mostrarConfirmarNovaSenha ? "text" : "password"}
+                    value={confirmarNovaSenha}
+                    onChange={(e) => setConfirmarNovaSenha(e.target.value)}
+                    className="w-full border border-gray-500 rounded px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    placeholder="Repita a nova senha"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMostrarConfirmarNovaSenha((v) => !v)}
+                    className="absolute right-3 top-[33px] text-gray-500 hover:text-gray-700"
+                  >
+                    {mostrarConfirmarNovaSenha ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </label>
+
+                <Button
+                  onClick={handleAlterarSenha}
+                  disabled={salvando}
+                  className="bg-gray-800 hover:bg-gray-900 text-white w-full flex items-center justify-center"
+                >
+                  {salvando ? <Loader2 className="animate-spin mr-2" size={18} /> : null}
+                  {salvando ? "Alterando..." : "Confirmar alteração"}
+                </Button>
+              </div>
+            )}
 
 
             {/* Excluir conta */}
@@ -1303,8 +1478,12 @@ async function handleEnviarCodigoTelefone() {
                 setSenha("")
                 setConfirmarSenha("")
                 setNovoEmail("")
+                setNovaSenha("")
+                setConfirmarNovaSenha("")
                 setMostrarSenha(false)
                 setMostrarSenhaConfirmar(false)
+                setMostrarNovaSenha(false)
+                setMostrarConfirmarNovaSenha(false)
                 setModo(null)
 
               }}
@@ -1373,8 +1552,8 @@ async function handleEnviarCodigoTelefone() {
             </h3>
 
             <p className="text-gray-600 mb-6">
-              Link enviado para o novo e-mail.<br />
-              A troca só será feita após confirmação nesse link.
+              Link enviado para o novo e-mail, não se esqueça de verificar caixa de spam e lixeira.<br /><br />
+              <span className="text-xs">A troca só será feita após confirmação nesse link.</span>
             </p>
 
             <Button
@@ -1439,6 +1618,45 @@ async function handleEnviarCodigoTelefone() {
         </div>
       )}
 
+      {modo === "senhaSucesso" && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-96 text-center">
+
+            <div className="flex justify-center mb-4">
+              <div className="bg-green-100 text-green-600 rounded-full p-4">
+                <CheckCircle size={36} />
+              </div>
+            </div>
+
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">
+              Senha alterada!
+            </h3>
+
+            <p className="text-gray-600 mb-6">
+              Sua senha foi atualizada com sucesso.
+            </p>
+
+            <Button
+              onClick={() => {
+                setModo(null)
+                setErroModal("")
+                setMensagemModal("")
+              }}
+              className="bg-gray-900 hover:bg-gray-800 text-white w-full py-2 rounded-md"
+            >
+              Ok
+            </Button>
+
+            <button
+              onClick={() => setModo(null)}
+              className="absolute top-2 right-3 text-gray-500 hover:text-gray-700 text-sm"
+            >
+              ✕
+            </button>
+
+          </div>
+        </div>
+      )}
 
 
       <div id="recaptcha-container"></div>
