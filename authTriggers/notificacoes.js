@@ -332,3 +332,307 @@ exports.sendAppointmentConfirmationEmail = async (appointmentData, pacienteInfo,
     }
   }
 };
+
+// ======================================================
+// Envio de e-mail de confirmação de retorno agendado
+// ======================================================
+exports.sendRetornoConfirmationEmail = async (retornoData, pacienteInfo, medicoInfo) => {
+  if (!retornoData.email) {
+    console.warn("Retorno sem e-mail do paciente. Não foi possível enviar notificação de retorno.");
+    return;
+  }
+
+  // Formatar data e hora
+  const formatarDataHora = (data, hora) => {
+    if (!data || !hora) return "Não informado";
+    const [ano, mes, dia] = data.split("-");
+    return `${dia}/${mes}/${ano} às ${hora}`;
+  };
+
+  // Traduzir tipo de retorno
+  const traduzirTipoRetorno = (tipo) => {
+    return tipo === "teleconsulta" ? "Teleconsulta" : "Presencial";
+  };
+
+  // Construir linhas de informação
+  const infos = [];
+
+  infos.push(`<p style="margin: 0; color: #1f2937; font-size: 15px; line-height: 1.6;">
+    <strong>Data/Hora:</strong> ${formatarDataHora(retornoData.novaData, retornoData.novoHorario)}
+  </p>`);
+
+  if (retornoData.tipoRetorno) {
+    infos.push(`<p style="margin: 8px 0 0; color: #1f2937; font-size: 15px; line-height: 1.6;">
+      <strong>Tipo de Atendimento:</strong> ${traduzirTipoRetorno(retornoData.tipoRetorno)}
+    </p>`);
+  }
+
+  if (retornoData.unidade && retornoData.unidade !== "Não informado") {
+    infos.push(`<p style="margin: 8px 0 0; color: #1f2937; font-size: 15px; line-height: 1.6;">
+      <strong>Local:</strong> ${retornoData.unidade}
+    </p>`);
+  }
+
+  if (retornoData.observacoes && retornoData.observacoes.trim() !== "") {
+    infos.push(`<p style="margin: 8px 0 0; color: #1f2937; font-size: 15px; line-height: 1.6;">
+      <strong>Observações:</strong> ${retornoData.observacoes}
+    </p>`);
+  }
+
+  const html = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Retorno Agendado</title>
+  <style>
+    body { margin:0; padding:0; background-color:#f5f7fa; font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; color:#333; }
+    .container { max-width:520px; margin:40px auto; background:#fff; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.08); overflow:hidden; }
+    .header { background:linear-gradient(135deg,#1c2636,#222d3f); padding:24px; text-align:center; color:#fff; }
+    .header h1 { font-size:20px; margin:0; font-weight:600; }
+    .content { padding:32px 28px; }
+    .content p { font-size:15px; line-height:1.6; margin:12px 0; color:#1f2937; }
+    .info-box { background-color:#f9fafb; padding:20px; border-radius:8px; margin:25px 0; }
+    .info-box-title { margin:0 0 15px; color:#6b7280; font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+    .medico-box { background:linear-gradient(135deg,#1c2636,#222d3f); padding:20px; border-radius:8px; margin:25px 0; text-align:center; }
+    .footer { padding:16px; text-align:center; font-size:13px; color:#777; background-color:#f9fafb; border-top:1px solid #e5e7eb; }
+    @media (max-width:480px){ .container{margin:20px;} }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Você tem um Retorno Agendado</h1>
+    </div>
+    <div class="content">
+      <p>
+        Olá, <strong>${pacienteInfo.nome || "Paciente"}</strong>!
+      </p>
+      <p>
+        Seu retorno foi agendado com sucesso na <strong>Clínica Dr. Roberto Nigro</strong>.
+      </p>
+
+      <div class="medico-box">
+        <p style="margin:0; color:#ffffff; font-size:16px; font-weight:600;">
+          ${medicoInfo.nome || "Médico"}
+        </p>
+        ${medicoInfo.especialidade ? `<p style="margin:8px 0 0; color:#ffffff; font-size:14px; opacity:0.9;">
+          ${medicoInfo.especialidade}
+        </p>` : ""}
+      </div>
+
+      <div class="info-box">
+        <p class="info-box-title">Detalhes do Retorno</p>
+        ${infos.join("\n        ")}
+      </div>
+
+      <p style="margin:25px 0 15px; color:#4b5563; font-size:14px; line-height:1.6;">
+        <strong>Importante:</strong>
+      </p>
+      <ul style="margin:0 0 25px; padding-left:20px; color:#4b5563; font-size:14px; line-height:1.8;">
+        <li>Chegue com 15 minutos de antecedência</li>
+        <li>Traga documentos pessoais e carteirinha do convênio (se aplicável)</li>
+        <li>Em caso de imprevistos, entre em contato conosco com antecedência</li>
+      </ul>
+    </div>
+    <div class="footer">
+      <p>
+        <strong>Clínica Dr. Roberto Nigro</strong><br/>
+        Contato: (11) 96572-1206<br/>
+        E-mail: admclinicarobertonigro@gmail.com<br/>
+        Site: www.clinicadrrobertonigro.com.br
+      </p>
+      <p style="margin-top:10px; font-size:12px; color:#9ca3af;">
+        © ${new Date().getFullYear()} Clínica Dr. Roberto Nigro — Todos os direitos reservados.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+
+  // Envio com retry (máximo 3 tentativas)
+  const maxTentativas = 3;
+  for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
+    try {
+      await transporter.sendMail({
+        from: `Clínica Dr. Roberto Nigro <${EMAIL_USER}>`,
+        to: retornoData.email,
+        subject: "Retorno Agendado — Clínica Dr. Roberto Nigro",
+        html,
+        headers: {
+          "Content-Type": "text/html; charset=UTF-8",
+        },
+      });
+
+      console.log(`E-mail de confirmação de retorno enviado para ${retornoData.email} (tentativa ${tentativa})`);
+      return; // Sucesso, sair da função
+    } catch (error) {
+      console.error(`Tentativa ${tentativa} de envio de e-mail falhou:`, error);
+
+      if (tentativa === maxTentativas) {
+        console.error("Falha ao enviar e-mail após todas as tentativas:", error);
+        throw error;
+      }
+
+      // Aguardar antes de tentar novamente (backoff exponencial)
+      await new Promise((resolve) => setTimeout(resolve, 1000 * tentativa));
+    }
+  }
+};
+
+// ======================================================
+// Envio de e-mail de cancelamento de consulta
+// ======================================================
+exports.sendAppointmentCancellationEmail = async (appointmentData, pacienteInfo, medicoInfo) => {
+  if (!appointmentData.email) {
+    console.warn("Appointment sem e-mail do paciente. Não foi possível enviar notificação de cancelamento.");
+    return;
+  }
+
+  // Formatar data e hora
+  const formatarDataHora = (horarioStr) => {
+    if (!horarioStr) return "Não informado";
+    const [data, hora] = horarioStr.split(" ");
+    const [ano, mes, dia] = data.split("-");
+    return `${dia}/${mes}/${ano} às ${hora}`;
+  };
+
+  // Traduzir tipo de consulta
+  const traduzirTipoConsulta = (tipo) => {
+    return tipo === "teleconsulta" ? "Teleconsulta" : "Presencial";
+  };
+
+  // Construir linhas de informação
+  const infos = [];
+
+  infos.push(`<p style="margin: 0; color: #1f2937; font-size: 15px; line-height: 1.6;">
+    <strong>Data/Hora:</strong> ${formatarDataHora(appointmentData.horario)}
+  </p>`);
+
+  if (appointmentData.tipoConsulta) {
+    infos.push(`<p style="margin: 8px 0 0; color: #1f2937; font-size: 15px; line-height: 1.6;">
+      <strong>Tipo de Consulta:</strong> ${traduzirTipoConsulta(appointmentData.tipoConsulta)}
+    </p>`);
+  }
+
+  if (appointmentData.unidade && appointmentData.unidade !== "Não informado") {
+    infos.push(`<p style="margin: 8px 0 0; color: #1f2937; font-size: 15px; line-height: 1.6;">
+      <strong>Local:</strong> ${appointmentData.unidade}
+    </p>`);
+  }
+
+  if (appointmentData.cancelReason && appointmentData.cancelReason.trim() !== "") {
+    infos.push(`<p style="margin: 8px 0 0; color: #1f2937; font-size: 15px; line-height: 1.6;">
+      <strong>Motivo:</strong> ${appointmentData.cancelReason}
+    </p>`);
+  }
+
+  const html = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cancelamento de Consulta</title>
+  <style>
+    body { margin:0; padding:0; background-color:#f5f7fa; font-family:"Helvetica Neue",Helvetica,Arial,sans-serif; color:#333; }
+    .container { max-width:520px; margin:40px auto; background:#fff; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.08); overflow:hidden; }
+    .header { background:linear-gradient(135deg,#dc2626,#b91c1c); padding:24px; text-align:center; color:#fff; }
+    .header h1 { font-size:20px; margin:0; font-weight:600; }
+    .content { padding:32px 28px; }
+    .content p { font-size:15px; line-height:1.6; margin:12px 0; color:#1f2937; }
+    .info-box { background-color:#fef2f2; padding:20px; border-radius:8px; margin:25px 0; border-left:4px solid #dc2626; }
+    .info-box-title { margin:0 0 15px; color:#991b1b; font-size:14px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+    .medico-box { background:linear-gradient(135deg,#1c2636,#222d3f); padding:20px; border-radius:8px; margin:25px 0; text-align:center; }
+    .cta-button { display:inline-block; margin:25px 0; padding:14px 28px; background-color:#030712; color:#fff; text-decoration:none; border-radius:8px; font-weight:600; font-size:15px; text-align:center; }
+    .footer { padding:16px; text-align:center; font-size:13px; color:#777; background-color:#f9fafb; border-top:1px solid #e5e7eb; }
+    @media (max-width:480px){ .container{margin:20px;} }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Cancelamento de Consulta</h1>
+    </div>
+    <div class="content">
+      <p>
+        Prezado(a) <strong>${pacienteInfo.nome || "Paciente"}</strong>,
+      </p>
+      <p>
+        Lamentamos informar que sua consulta agendada com <strong>${medicoInfo.nome || "Dr(a). Médico"}</strong> precisou ser cancelada.
+      </p>
+      <p>
+        Infelizmente, não conseguiremos atendê-lo(a) no horário previamente marcado. Pedimos sinceras desculpas pelo transtorno causado.
+      </p>
+
+      <div class="medico-box">
+        <p style="margin:0; color:#ffffff; font-size:16px; font-weight:600;">
+          ${medicoInfo.nome || "Médico"}
+        </p>
+        ${medicoInfo.especialidade ? `<p style="margin:8px 0 0; color:#ffffff; font-size:14px; opacity:0.9;">
+          ${medicoInfo.especialidade}
+        </p>` : ""}
+      </div>
+
+      <div class="info-box">
+        <p class="info-box-title">Detalhes da Consulta Cancelada</p>
+        ${infos.join("\n        ")}
+      </div>
+
+      <p style="text-align:center; margin:25px 0;">
+        <strong>Agende um novo horário pelo nosso site:</strong>
+      </p>
+      <p style="text-align:center; margin:0;">
+        <a href="https://consultorio-app-2156a.web.app"
+           style="display:inline-block; margin:10px 0; padding:14px 28px; background-color:#030712; color:#ffffff !important; text-decoration:none; border-radius:8px; font-weight:600; font-size:15px;">
+          Acessar Site
+        </a>
+      </p>
+    </div>
+    <div class="footer">
+      <p>
+        <strong>Clínica Dr. Roberto Nigro</strong><br/>
+        Contato: (11) 96572-1206<br/>
+        E-mail: admclinicarobertonigro@gmail.com<br/>
+        Site: www.clinicadrrobertonigro.com.br
+      </p>
+      <p style="margin-top:10px; font-size:12px; color:#9ca3af;">
+        © ${new Date().getFullYear()} Clínica Dr. Roberto Nigro — Todos os direitos reservados.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+
+  // Envio com retry (máximo 3 tentativas)
+  const maxTentativas = 3;
+  for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
+    try {
+      await transporter.sendMail({
+        from: `Clínica Dr. Roberto Nigro <${EMAIL_USER}>`,
+        to: appointmentData.email,
+        subject: "Cancelamento de Consulta — Clínica Dr. Roberto Nigro",
+        html,
+        headers: {
+          "Content-Type": "text/html; charset=UTF-8",
+        },
+      });
+
+      console.log(`E-mail de cancelamento de consulta enviado para ${appointmentData.email} (tentativa ${tentativa})`);
+      return; // Sucesso, sair da função
+    } catch (error) {
+      console.error(`Tentativa ${tentativa} de envio de e-mail falhou:`, error);
+
+      if (tentativa === maxTentativas) {
+        console.error("Falha ao enviar e-mail após todas as tentativas:", error);
+        throw error;
+      }
+
+      // Aguardar antes de tentar novamente (backoff exponencial)
+      await new Promise((resolve) => setTimeout(resolve, 1000 * tentativa));
+    }
+  }
+};
