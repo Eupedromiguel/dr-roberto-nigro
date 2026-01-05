@@ -25,3 +25,5 @@ serviceAccount*.json
 *.njsproj
 *.sln
 *.sw?
+
+services/firebase.js
