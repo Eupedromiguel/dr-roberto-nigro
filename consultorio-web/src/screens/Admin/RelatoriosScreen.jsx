@@ -805,12 +805,12 @@ export default function RelatoriosScreen() {
         </button>
 
         {erro && (
-  <div className="w-full mt-2 flex justify-center">
-    <span className="text-red-700 text-sm px-3 py-1 rounded-md font-semibold">
-      {erro}
-    </span>
-  </div>
-)}
+          <div className="w-full mt-2 flex justify-center">
+            <span className="text-red-700 text-sm px-3 py-1 rounded-md font-semibold">
+              {erro}
+            </span>
+          </div>
+        )}
 
 
       </div>
@@ -1257,6 +1257,9 @@ export default function RelatoriosScreen() {
               {loadingExport ? "Preparando exportação..." : "Imprimir / PDF"}
             </button>
           </div>
+          <br />
+          <p className="text-white text-xs">Para melhor experiência utilize Google Chrome, navegadores como Safari podem apresentar problemas ao Exportar PDF.</p>
+
         </div>
 
       )}
